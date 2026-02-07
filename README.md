@@ -1,16 +1,17 @@
-# intelligent-sre-mcp
+
+# 🧠 Intelligent SRE MCP
+
 A smart SRE platform that combines monitoring, context, and AI to detect incidents, analyze root causes, and assist with auto-healing.
 
-An intelligent SRE copilot that lets you ask questions about your infrastructure
-in plain English and get answers directly from Prometheus using Claude Desktop
-via the Model Context Protocol (MCP).
+>An intelligent SRE copilot that lets you ask questions about your infrastructure in plain English and get answers directly from Prometheus using Claude Desktop via the Model Context Protocol (MCP).
 
-Think of it as:
-“Claude, but connected to my monitoring system.”
+**Think of it as:**
+> “Claude, but connected to my monitoring system.”
 
+---
 
-WHAT THIS PROJECT DOES
----------------------
+## 🚦 What This Project Does
+
 This project creates a Python-based MCP server that:
 - Connects to Prometheus
 - Exposes Prometheus data as tools to Claude Desktop
@@ -21,100 +22,132 @@ This project creates a Python-based MCP server that:
 
 Claude does not guess. It queries real metrics.
 
+---
 
-ARCHITECTURE (SIMPLE)
----------------------
+## 🏗️ Architecture (Simple)
+
+```text
 Claude Desktop
-    |
-    | (MCP over stdio)
-    v
+  |
+  | (MCP over stdio)
+  v
 intelligent-sre-mcp (Python MCP server)
-    |
-    | (HTTP / PromQL)
-    v
+  |
+  | (HTTP / PromQL)
+  v
 Prometheus (Docker, local)
-    |
-    v
+  |
+  v
 node-exporter (machine metrics)
+```
 
 
-PREREQUISITES
--------------
+
+---
+
+## 🛠️ Prerequisites
+
 - macOS or Linux
 - Python 3.10+
 - Docker + Docker Compose
 - Claude Desktop (app)
 
 
-STEP 1: CLONE THE REPO
----------------------
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the repository
+
+```bash
 git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
 cd intelligent-sre-mcp
+```
 
 
-STEP 2: PYTHON VIRTUAL ENVIRONMENT
----------------------------------
+
+### 2. Set up Python virtual environment
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-
-Upgrade tools:
 pip install -U pip setuptools wheel
-
-Install dependencies:
 pip install -U "mcp[cli]" httpx
+```
 
 
-STEP 3: START PROMETHEUS 
----------------------------------------
+
+### 3. Start Prometheus (and infrastructure)
+
+```bash
 cd infra
 docker compose up -d
+```
 
-Prometheus UI:
-http://localhost:9090
+Prometheus UI: [http://localhost:9090](http://localhost:9090)
 
-Verify:
+Verify Prometheus is running:
+
+```bash
 curl http://localhost:9090/api/v1/query?query=up | python -m json.tool
+```
 
-If empty:
+If empty, restart Prometheus:
+
+```bash
 docker compose restart prometheus
+```
 
 
-STEP 4: MCP SERVER (PYTHON)
---------------------------
-The MCP server lives in:
-src/intelligent_sre_mcp/server.py
 
-Rules:
+### 4. MCP Server (Python)
+
+The MCP server lives in: `src/intelligent_sre_mcp/server.py`
+
+**Rules:**
 - NEVER print to stdout
 - Use FastMCP
 - Prometheus queried via HTTP
 
 
-STEP 5: WRAPPER SCRIPT (IMPORTANT)
----------------------------------
-Create run_mcp.sh in repo root:
 
+### 5. Wrapper Script (Important)
+
+Create `run_mcp.sh` in the repo root:
+
+```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
 export PROMETHEUS_URL="http://localhost:9090"
 export PYTHONPATH="$(cd "$(dirname "$0")" && pwd)/src"
 
-exec "$(cd "$(dirname "$0")" && pwd)/.venv/bin/python" -m intelligent_sre_mcp.server
+exec "$(cd "$(dirname \"$0\")" && pwd)/.venv/bin/python" -m intelligent_sre_mcp.server
+```
 
-Make executable:
+Make it executable:
+
+```bash
 chmod +x run_mcp.sh
+```
 
 Test:
+
+```bash
 ./run_mcp.sh
-(it should hang – that is correct)
+# (it should hang – that is correct)
+```
 
 
-STEP 6: CONNECT CLAUDE DESKTOP
------------------------------
-Create/edit:
-~/Library/Application Support/Claude/claude_desktop_config.json
 
+### 6. Connect Claude Desktop
+
+Create or edit:
+
+`~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
 {
   "mcpServers": {
     "intelligent-sre-mcp": {
@@ -124,30 +157,37 @@ Create/edit:
     }
   }
 }
+```
 
-Use absolute paths.
-
-
-STEP 7: RESTART CLAUDE
----------------------
-Quit Claude completely (Cmd+Q)
-Open Claude Desktop again
+> **Use absolute paths.**
 
 
-STEP 8: PROMPTS TO USE IN CLAUDE
--------------------------------
 
-Basic checks:
-Run prom_query with query "up"
-Run prom_query with query "prometheus_build_info"
+### 7. Restart Claude
 
-Health checks:
-Run prom_query with query "up == 0"
-Run prom_query with query "count(up == 1)"
-Run prom_query with query "avg(up)"
+Quit Claude completely (`Cmd+Q`), then open Claude Desktop again.
 
-System metrics:
-Run prom_query with query "rate(node_cpu_seconds_total{mode!='idle'}[5m])"
-Run prom_query with query "node_memory_MemAvailable_bytes"
-Run prom_query with query "node_filesystem_avail_bytes"
+
+
+### 8. Prompts to Use in Claude
+
+**Basic checks:**
+- Run prom_query with query `"up"`
+- Run prom_query with query `"prometheus_build_info"`
+
+**Health checks:**
+- Run prom_query with query `"up == 0"`
+- Run prom_query with query `"count(up == 1)"`
+- Run prom_query with query `"avg(up)"`
+
+**System metrics:**
+- Run prom_query with query `"rate(node_cpu_seconds_total{mode!='idle'}[5m])"`
+- Run prom_query with query `"node_memory_MemAvailable_bytes"`
+- Run prom_query with query `"node_filesystem_avail_bytes"`
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
 
