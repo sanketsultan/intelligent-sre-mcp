@@ -1,5 +1,5 @@
 
-# 🧠 Intelligent SRE MCP
+# Intelligent SRE MCP
 
 A smart SRE platform that combines monitoring, context, and AI to detect incidents, analyze root causes, and assist with auto-healing.
 
@@ -10,7 +10,7 @@ A smart SRE platform that combines monitoring, context, and AI to detect inciden
 
 ---
 
-## 🚦 What This Project Does
+## What This Project Does
 
 This project creates a Python-based MCP server that:
 - Connects to Prometheus
@@ -24,7 +24,7 @@ Claude does not guess. It queries real metrics.
 
 ---
 
-## 🏗️ Architecture (Simple)
+## Architecture (Simple)
 
 ```text
 Claude Desktop
@@ -45,7 +45,7 @@ node-exporter (machine metrics)
 
 ---
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 - macOS or Linux
 - Python 3.10+
@@ -56,7 +56,7 @@ node-exporter (machine metrics)
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone the repository
 
@@ -187,7 +187,7 @@ Quit Claude completely (`Cmd+Q`), then open Claude Desktop again.
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License**.
 
