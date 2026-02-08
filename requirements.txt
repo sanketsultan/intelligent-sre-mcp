@@ -1,0 +1,5 @@
+# Project dependencies for intelligent-sre-mcp
+httpx
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation
