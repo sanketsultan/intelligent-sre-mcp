@@ -219,14 +219,6 @@ intelligent-sre-mcp/
 
 ---
 
-## Documentation
-
-- **[Kubernetes Deployment Guide](KUBERNETES_DEPLOYMENT.md)** - Complete K8s setup instructions
-- **[Claude Setup Guide](CLAUDE_SETUP.md)** - Detailed Claude Desktop integration
-- **[Grafana Setup Guide](GRAFANA_SETUP.md)** - Dashboard configuration and imports
-
----
-
 ## Development
 
 ### Local Development
