@@ -1,0 +1,79 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: intelligent-sre
+  labels:
+    app: jaeger
+spec:
+  type: NodePort
+  ports:
+    - port: 16686
+      targetPort: 16686
+      nodePort: 30686
+      protocol: TCP
+      name: ui
+    - port: 14250
+      targetPort: 14250
+      protocol: TCP
+      name: grpc
+    - port: 14268
+      targetPort: 14268
+      protocol: TCP
+      name: http
+    - port: 6831
+      targetPort: 6831
+      protocol: UDP
+      name: thrift-compact
+    - port: 6832
+      targetPort: 6832
+      protocol: UDP
+      name: thrift-binary
+  selector:
+    app: jaeger
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: intelligent-sre
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:latest
+          ports:
+            - containerPort: 16686
+              name: ui
+            - containerPort: 14250
+              name: grpc
+            - containerPort: 14268
+              name: http
+            - containerPort: 6831
+              protocol: UDP
+              name: thrift-compact
+            - containerPort: 6832
+              protocol: UDP
+              name: thrift-binary
+          env:
+            - name: COLLECTOR_ZIPKIN_HOST_PORT
+              value: ":9411"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

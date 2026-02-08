@@ -1,0 +1,89 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: intelligent-sre
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager:9093"]
+
+    rule_files:
+      - /etc/prometheus/alert_rules.yml
+
+    scrape_configs:
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["prometheus:9090"]
+
+      - job_name: "node-exporter"
+        static_configs:
+          - targets: ["node-exporter:9100"]
+      
+      - job_name: "demo-metrics"
+        static_configs:
+          - targets: ["demo-metrics:9102"]
+      
+      - job_name: "otel-collector"
+        static_configs:
+          - targets: ["otel-collector:9464"]
+
+  alert_rules.yml: |
+    groups:
+      - name: basic
+        rules:
+          - alert: NodeExporterDown
+            expr: up{job="node-exporter"} == 0
+            for: 30s
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node Exporter is down"
+              description: "Prometheus cannot scrape node-exporter for 30s."
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: intelligent-sre
+data:
+  alertmanager.yml: |
+    global: {}
+
+    route:
+      receiver: "default"
+
+    receivers:
+      - name: "default"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: intelligent-sre
+data:
+  otel-collector.yml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          exporters: [prometheus]

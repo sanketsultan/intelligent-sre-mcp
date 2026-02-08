@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: intelligent-sre
+
+resources:
+  - namespace.yaml
+  - configmaps.yaml
+  - prometheus.yaml
+  - alertmanager.yaml
+  - node-exporter.yaml
+  - otel-collector.yaml
+  - jaeger.yaml
+  - demo-metrics.yaml
+  - intelligent-sre-mcp.yaml
+  - grafana.yaml
+
+commonLabels:
+  project: intelligent-sre-mcp
+  managed-by: kustomize

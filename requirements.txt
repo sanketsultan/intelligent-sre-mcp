@@ -1,5 +1,10 @@
 # Project dependencies for intelligent-sre-mcp
 httpx
+fastapi
+uvicorn[standard]
+pydantic
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx

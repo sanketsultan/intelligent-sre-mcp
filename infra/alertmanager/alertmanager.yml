@@ -1,7 +1,0 @@
-global: {}
-
-route:
-  receiver: "default"
-
-receivers:
-  - name: "default"
