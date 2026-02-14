@@ -184,7 +184,7 @@ cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "intelligent-sre-mcp": {
-      "command": "/Users/YOUR_USERNAME/Desktop/intelligent-sre-mcp/run_mcp_api.sh",
+      "command": "/Users/YOUR_USERNAME/Desktop/intelligent-sre-mcp/setup/run_mcp_api.sh",
       "args": [],
       "env": {
         "API_URL": "http://localhost:30080"

@@ -222,7 +222,7 @@ cat > "$CLAUDE_CONFIG_FILE" << EOF
 {
   "mcpServers": {
     "intelligent-sre-mcp": {
-      "command": "$PROJECT_DIR/run_mcp_api.sh",
+            "command": "$PROJECT_DIR/setup/run_mcp_api.sh",
       "args": [],
       "env": {
         "API_URL": "http://localhost:30080"

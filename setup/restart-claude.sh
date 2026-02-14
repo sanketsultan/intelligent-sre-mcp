@@ -61,7 +61,7 @@ echo ""
 
 # Step 3: Check MCP script
 echo -e "${CYAN}[3/5] Checking MCP script...${NC}"
-MCP_SCRIPT="/Users/$(whoami)/Desktop/intelligent-sre-mcp/run_mcp_api.sh"
+MCP_SCRIPT="/Users/$(whoami)/Desktop/intelligent-sre-mcp/setup/run_mcp_api.sh"
 
 if [ -f "$MCP_SCRIPT" ]; then
     echo -e "${GREEN}✓ MCP script exists${NC}"

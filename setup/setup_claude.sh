@@ -2,6 +2,7 @@
 # Quick setup script for Claude Desktop configuration
 
 CONFIG_FILE="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🔧 Updating Claude Desktop configuration..."
 
@@ -15,11 +16,11 @@ fi
 mkdir -p "$(dirname "$CONFIG_FILE")"
 
 # Write new config
-cat > "$CONFIG_FILE" << 'EOF'
+cat > "$CONFIG_FILE" << EOF
 {
   "mcpServers": {
     "intelligent-sre-mcp": {
-      "command": "/Users/sanket/Desktop/intelligent-sre-mcp/run_mcp_api.sh",
+      "command": "$PROJECT_DIR/setup/run_mcp_api.sh",
       "args": [],
       "env": {
         "API_URL": "http://localhost:30080"

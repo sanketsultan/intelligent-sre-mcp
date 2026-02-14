@@ -279,7 +279,7 @@ killall Claude
 open -a Claude
 
 # Check MCP wrapper script
-cat run_mcp_api.sh
+cat setup/run_mcp_api.sh
 
 # Test API manually
 curl http://localhost:30080/health

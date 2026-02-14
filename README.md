@@ -24,12 +24,18 @@ An intelligent SRE copilot that connects Claude Desktop to your entire monitorin
 
 ## Quick Start
 
-**One command to set up everything:**
+**Setup scripts now live in `setup/`:**
+
+```bash
+ls setup/
+```
+
+**One command for everything (K8s + Claude):**
 
 ```bash
 git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
 cd intelligent-sre-mcp
-./setup.sh
+./setup/quickstart.sh all
 ```
 
 This will:
@@ -38,9 +44,19 @@ This will:
 - ✓ Configure Claude Desktop integration
 - ✓ Verify all services are running
 
-**Then restart Claude Desktop:**
+**Only want Claude setup?**
 ```bash
-killall Claude && open -a Claude
+./setup/quickstart.sh claude
+```
+
+**Only want Kubernetes setup?**
+```bash
+./setup/quickstart.sh k8s
+```
+
+**Docker-only (API container):**
+```bash
+./setup/quickstart.sh docker
 ```
 
 **Test it:**
