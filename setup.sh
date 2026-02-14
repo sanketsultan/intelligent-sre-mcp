@@ -119,6 +119,12 @@ print_success "Namespace created"
 kubectl apply -f k8s/configmaps.yaml >/dev/null 2>&1
 print_success "ConfigMaps created"
 
+kubectl apply -f k8s/rbac.yaml >/dev/null 2>&1
+print_success "RBAC roles created"
+
+kubectl apply -f k8s/kube-state-metrics.yaml >/dev/null 2>&1
+print_success "Kube-State-Metrics deployed"
+
 kubectl apply -f k8s/prometheus.yaml >/dev/null 2>&1
 print_success "Prometheus deployed"
 

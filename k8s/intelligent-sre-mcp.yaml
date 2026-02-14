@@ -35,6 +35,7 @@ spec:
       labels:
         app: intelligent-sre-mcp
     spec:
+      serviceAccountName: intelligent-sre-mcp
       containers:
         - name: intelligent-sre-mcp
           image: intelligent-sre-mcp:latest
@@ -44,6 +45,8 @@ spec:
               value: "http://prometheus:9090"
             - name: OTLP_ENDPOINT
               value: "http://otel-collector:4317"
+            - name: ENABLE_TRACING
+              value: "false"  # Disable tracing to avoid OTEL errors
             - name: REQUEST_TIMEOUT
               value: "10"
             - name: SERVICE_NAME

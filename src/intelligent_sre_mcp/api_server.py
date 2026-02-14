@@ -2,6 +2,7 @@ import os
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 import uvicorn
 
 # OpenTelemetry imports
@@ -17,6 +18,9 @@ from opentelemetry.semconv.resource import ResourceAttributes
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
+# Import Kubernetes tools
+from intelligent_sre_mcp.tools.k8s_tools import KubernetesTools
+
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://otel-collector:4317")
@@ -24,6 +28,9 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "intelligent-sre-mcp")
 ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
 
 app = FastAPI(title="Intelligent SRE MCP API", version="0.1.0")
+
+# Initialize Kubernetes tools
+k8s_tools = KubernetesTools()
 
 # OTel configuration
 def configure_otel():
@@ -110,5 +117,77 @@ def get_targets():
     except httpx.HTTPError as e:
         raise HTTPException(status_code=500, detail=f"Failed to get targets: {str(e)}")
 
+# ============================================================
+# Kubernetes Diagnostic Endpoints
+# ============================================================
+
+@app.get("/k8s/pods")
+def get_k8s_pods(namespace: Optional[str] = None):
+    """
+    Get all pods with their status.
+    Query params: namespace (optional)
+    """
+    return k8s_tools.get_all_pods(namespace)
+
+@app.get("/k8s/pods/failing")
+def get_failing_k8s_pods(namespace: Optional[str] = None):
+    """
+    Get pods that are in failing states.
+    Query params: namespace (optional)
+    """
+    return k8s_tools.get_failing_pods(namespace)
+
+@app.get("/k8s/pods/{namespace}/{pod_name}/logs")
+def get_k8s_pod_logs(
+    namespace: str,
+    pod_name: str,
+    container: Optional[str] = None,
+    tail_lines: int = 100,
+    previous: bool = False
+):
+    """
+    Get logs from a specific pod/container.
+    Path params: namespace, pod_name
+    Query params: container, tail_lines, previous
+    """
+    return k8s_tools.get_pod_logs(namespace, pod_name, container, tail_lines, previous)
+
+@app.get("/k8s/pods/{namespace}/{pod_name}")
+def describe_k8s_pod(namespace: str, pod_name: str):
+    """
+    Get detailed information about a pod (similar to kubectl describe).
+    Path params: namespace, pod_name
+    """
+    return k8s_tools.describe_pod(namespace, pod_name)
+
+@app.get("/k8s/nodes")
+def get_k8s_nodes():
+    """Get status of all nodes in the cluster."""
+    return k8s_tools.get_node_status()
+
+@app.get("/k8s/deployments/{namespace}/{deployment_name}")
+def get_k8s_deployment(namespace: str, deployment_name: str):
+    """
+    Get status of a specific deployment.
+    Path params: namespace, deployment_name
+    """
+    return k8s_tools.get_deployment_status(namespace, deployment_name)
+
+@app.get("/k8s/events")
+def get_k8s_events(
+    namespace: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    resource_name: Optional[str] = None
+):
+    """
+    Get Kubernetes events.
+    Query params: namespace, resource_type, resource_name (all optional)
+    """
+    return k8s_tools.get_events(namespace, resource_type, resource_name)
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
+
+
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=8080)

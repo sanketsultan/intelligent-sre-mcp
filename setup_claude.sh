@@ -8,7 +8,7 @@ echo "🔧 Updating Claude Desktop configuration..."
 # Backup existing config
 if [ -f "$CONFIG_FILE" ]; then
     cp "$CONFIG_FILE" "$CONFIG_FILE.backup.$(date +%Y%m%d_%H%M%S)"
-    echo "✅ Backed up existing config"
+    echo "Backed up existing config"
 fi
 
 # Create config directory if it doesn't exist

@@ -3,6 +3,7 @@ httpx
 fastapi
 uvicorn[standard]
 pydantic
+kubernetes
 opentelemetry-sdk
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation
