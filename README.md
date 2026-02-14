@@ -48,6 +48,20 @@ killall Claude && open -a Claude
 Ask Claude: "Show me all pods in the intelligent-sre namespace"
 ```
 
+## Docker Image
+
+Pull the public image:
+
+```bash
+docker pull sanketsultan/intelligent-sre-mcp:latest
+```
+
+Optional run (exposes API on port 30080):
+
+```bash
+docker run --rm -p 30080:8080 sanketsultan/intelligent-sre-mcp:latest
+```
+
 ---
 
 ## 26 MCP Tools for Claude
