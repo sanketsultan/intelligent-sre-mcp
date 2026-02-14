@@ -103,18 +103,18 @@ data:
               summary: "Service {{ $labels.job }} is down"
               description: "Target {{ $labels.instance }} has been down for more than 5 minutes"
               
-  alert_rules.yml: |
-    groups:
-      - name: basic
-        rules:
-          - alert: NodeExporterDown
-            expr: up{job="node-exporter"} == 0
-            for: 30s
-            labels:
-              severity: warning
-            annotations:
-              summary: "Node Exporter is down"
-              description: "Prometheus cannot scrape node-exporter for 30s."
+  # alert_rules.yml: |
+  #   groups:
+  #     - name: basic
+  #       rules:
+  #         - alert: NodeExporterDown
+  #           expr: up{job="node-exporter"} == 0
+  #           for: 30s
+  #           labels:
+  #             severity: warning
+  #           annotations:
+  #             summary: "Node Exporter is down"
+  #             description: "Prometheus cannot scrape node-exporter for 30s."
 
 ---
 apiVersion: v1
