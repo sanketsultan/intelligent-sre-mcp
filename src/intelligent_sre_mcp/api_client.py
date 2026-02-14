@@ -52,6 +52,124 @@ def health_check() -> str:
     except httpx.HTTPError as e:
         return f"Error checking health: {str(e)}"
 
+@mcp.tool()
+def record_agent_activity(intent: str, inputs_summary: str, action_taken: str, outcome: str = None, notes: str = None, timestamp: str = None, problem_id: int = None) -> str:
+    """
+    Record a concise Claude activity summary (intent, inputs, action, outcome).
+    Use short, high-signal summaries with no noise.
+    """
+    try:
+        payload = {
+            "intent": intent,
+            "inputs_summary": inputs_summary,
+            "action_taken": action_taken,
+            "outcome": outcome,
+            "notes": notes,
+            "timestamp": timestamp,
+            "problem_id": problem_id,
+        }
+        with httpx.Client(timeout=TIMEOUT) as client:
+            response = client.post(
+                f"{API_URL}/learning/agent-activity",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error recording agent activity: {str(e)}"
+
+@mcp.tool()
+def get_agent_activity(hours: int = 24, limit: int = 50) -> str:
+    """
+    Get recent Claude activity summaries (intent, inputs, action, outcome).
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            response = client.get(
+                f"{API_URL}/learning/agent-activity",
+                params={"hours": hours, "limit": limit}
+            )
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error getting agent activity: {str(e)}"
+
+@mcp.tool()
+def create_problem(title: str, namespace: str = None, resource: str = None, severity: str = None, status: str = "open", summary: str = None) -> str:
+    """
+    Create a problem record for auditing and linking actions.
+    """
+    try:
+        payload = {
+            "title": title,
+            "namespace": namespace,
+            "resource": resource,
+            "severity": severity,
+            "status": status,
+            "summary": summary,
+        }
+        with httpx.Client(timeout=TIMEOUT) as client:
+            response = client.post(
+                f"{API_URL}/learning/problems",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error creating problem: {str(e)}"
+
+@mcp.tool()
+def update_problem(problem_id: int, status: str, summary: str = None) -> str:
+    """
+    Update a problem status/summary.
+    """
+    try:
+        payload = {"status": status, "summary": summary}
+        with httpx.Client(timeout=TIMEOUT) as client:
+            response = client.patch(
+                f"{API_URL}/learning/problems/{problem_id}",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error updating problem: {str(e)}"
+
+@mcp.tool()
+def list_problems(hours: int = 24, limit: int = 50) -> str:
+    """
+    List recent problems.
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            response = client.get(
+                f"{API_URL}/learning/problems",
+                params={"hours": hours, "limit": limit}
+            )
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error listing problems: {str(e)}"
+
+@mcp.tool()
+def list_tool_invocations(hours: int = 24, limit: int = 100) -> str:
+    """
+    List recent tool/API invocations for auditing.
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            response = client.get(
+                f"{API_URL}/learning/tool-invocations",
+                params={"hours": hours, "limit": limit}
+            )
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error listing tool invocations: {str(e)}"
+
 # ============================================================
 # Kubernetes Diagnostic Tools
 # ============================================================

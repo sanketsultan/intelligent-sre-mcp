@@ -1,9 +1,11 @@
 import os
 import httpx
+import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import time
 import uvicorn
 
 # OpenTelemetry imports
@@ -25,7 +27,7 @@ from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
 from intelligent_sre_mcp.tools.pattern_recognition import PatternRecognizer
 from intelligent_sre_mcp.tools.correlation import CorrelationEngine
 from intelligent_sre_mcp.tools.healing_actions import HealingActions
-from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore
+from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, set_current_problem_id
 from kubernetes import client
 
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
@@ -53,6 +55,47 @@ healing_actions = HealingActions(
     policy_api=client.PolicyV1Api(),
     action_store=action_store
 )
+
+@app.middleware("http")
+async def log_tool_invocation(request, call_next):
+    start_time = time.perf_counter()
+    body_bytes = await request.body()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    try:
+        body_text = body_bytes.decode("utf-8") if body_bytes else None
+    except UnicodeDecodeError:
+        body_text = None
+    query_params = str(request.query_params) if request.query_params else None
+    header_problem_id = request.headers.get("X-Problem-Id")
+    try:
+        header_problem_id = int(header_problem_id) if header_problem_id else None
+    except ValueError:
+        header_problem_id = None
+    request_problem_id = header_problem_id
+    if request_problem_id is None and request.url.path not in {"/health", "/"}:
+        fingerprint = f"{request.method}:{request.url.path}?{query_params or ''}"
+        title = f"{request.method} {request.url.path}"
+        request_problem_id = action_store.get_or_create_problem(
+            title=title,
+            fingerprint=fingerprint,
+        )
+    set_current_problem_id(request_problem_id)
+    try:
+        action_store.record_tool_invocation(
+            method=request.method,
+            path=request.url.path,
+            query_params=query_params,
+            body=body_text,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            problem_id=request_problem_id,
+        )
+    except Exception:
+        pass
+    finally:
+        set_current_problem_id(None)
+    return response
 
 # OTel configuration
 def configure_otel():
@@ -96,6 +139,33 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     status: str
     data: dict
+
+class AgentActivityRequest(BaseModel):
+    intent: str
+    inputs_summary: str
+    action_taken: str
+    outcome: Optional[str] = None
+    notes: Optional[str] = None
+    timestamp: Optional[str] = None
+    problem_id: Optional[int] = None
+
+class ProblemCreateRequest(BaseModel):
+    title: str
+    namespace: Optional[str] = None
+    resource: Optional[str] = None
+    severity: Optional[str] = None
+    status: str = "open"
+    summary: Optional[str] = None
+
+class ProblemUpdateRequest(BaseModel):
+    status: str
+    summary: Optional[str] = None
+
+class ActionOutcomeRequest(BaseModel):
+    action_id: int
+    outcome: str
+    resolution_time_seconds: Optional[float] = None
+    notes: Optional[str] = None
 
 def prom_query_instant(query: str) -> dict:
     url = f"{PROM_URL}/api/v1/query"
@@ -388,14 +458,51 @@ def get_action_history(hours: int = 24):
     result = healing_actions.get_action_history(hours)
     return result
 
-# ==================== Phase 5: Learning & Optimization ====================
+@app.post("/learning/agent-activity")
+def record_agent_activity(request: AgentActivityRequest):
+    activity_id = action_store.record_agent_activity(
+        intent=request.intent,
+        inputs_summary=request.inputs_summary,
+        action_taken=request.action_taken,
+        outcome=request.outcome,
+        notes=request.notes,
+        timestamp=request.timestamp,
+        problem_id=request.problem_id,
+    )
+    return {"status": "success", "activity_id": activity_id}
 
-class ActionOutcomeRequest(BaseModel):
-    action_id: int
-    outcome: str
-    resolution_time_seconds: Optional[float] = None
-    notes: Optional[str] = None
+@app.get("/learning/agent-activity")
+def get_agent_activity(hours: int = 24, limit: int = 50):
+    return action_store.list_agent_activity(hours=hours, limit=limit)
 
+@app.post("/learning/problems")
+def create_problem(request: ProblemCreateRequest):
+    problem_id = action_store.create_problem(
+        title=request.title,
+        namespace=request.namespace,
+        resource=request.resource,
+        severity=request.severity,
+        status=request.status,
+        summary=request.summary,
+    )
+    return {"status": "success", "problem_id": problem_id}
+
+@app.patch("/learning/problems/{problem_id}")
+def update_problem(problem_id: int, request: ProblemUpdateRequest):
+    updated = action_store.update_problem_status(
+        problem_id=problem_id,
+        status=request.status,
+        summary=request.summary,
+    )
+    return {"status": "success" if updated else "not_found", "updated": updated}
+
+@app.get("/learning/problems")
+def list_problems(hours: int = 24, limit: int = 50):
+    return action_store.list_problems(hours=hours, limit=limit)
+
+@app.get("/learning/tool-invocations")
+def list_tool_invocations(hours: int = 24, limit: int = 100):
+    return action_store.list_tool_invocations(hours=hours, limit=limit)
 
 @app.get("/learning/action-stats")
 def get_action_stats(hours: int = 24):

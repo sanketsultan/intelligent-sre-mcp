@@ -56,7 +56,7 @@ class HealingActionLimiter:
         return True, "Action allowed"
     
     def record_action(self, action_type: str, namespace: str, resource: str, 
-                     success: bool, details: str) -> int | None:
+                     success: bool, details: str, problem_id: int | None = None) -> int | None:
         """Record a healing action for audit and rate limiting"""
         self.action_history.append({
             'timestamp': datetime.utcnow(),
@@ -75,13 +75,23 @@ class HealingActionLimiter:
         ]
 
         if self.action_store:
-            return self.action_store.record_action(
+            action_id = self.action_store.record_action(
                 action_type=action_type,
                 namespace=namespace,
                 resource=resource,
                 success=success,
-                details=details
+                details=details,
+                problem_id=problem_id,
             )
+            self.action_store.record_agent_activity(
+                intent="healing_action",
+                inputs_summary=f"{action_type} {namespace}/{resource}",
+                action_taken=f"{action_type} executed",
+                outcome="success" if success else "failed",
+                notes=details,
+                problem_id=problem_id,
+            )
+            return action_id
         return None
     
     def get_action_history(self, hours: int = 24) -> List[Dict[str, Any]]:
