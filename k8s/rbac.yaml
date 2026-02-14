@@ -44,6 +44,12 @@ rules:
   - pods/ephemeralcontainers
   verbs: ["patch", "update"]
 
+# Pod eviction (for drain/evict actions)
+- apiGroups: ["policy"]
+  resources:
+  - pods/eviction
+  verbs: ["create"]
+
 # Deployment healing operations (scale, rollback, apply configurations)
 - apiGroups: ["apps"]
   resources:

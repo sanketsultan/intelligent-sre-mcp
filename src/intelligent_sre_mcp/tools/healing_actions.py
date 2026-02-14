@@ -88,9 +88,10 @@ class HealingActionLimiter:
 class HealingActions:
     """Automated healing actions for Kubernetes resources"""
     
-    def __init__(self, core_api: client.CoreV1Api, apps_api: client.AppsV1Api):
+    def __init__(self, core_api: client.CoreV1Api, apps_api: client.AppsV1Api, policy_api: client.PolicyV1Api):
         self.core_api = core_api
         self.apps_api = apps_api
+        self.policy_api = policy_api
         self.limiter = HealingActionLimiter()
         
     def restart_pod(self, namespace: str, pod_name: str, dry_run: bool = False) -> Dict[str, Any]:
@@ -269,6 +270,217 @@ class HealingActions:
                 'success': False,
                 'action': action_type,
                 'namespace': namespace,
+                'error': error_msg,
+                'dry_run': dry_run
+            }
+
+    def evict_pod_from_node(self, namespace: str, pod_name: str, dry_run: bool = False,
+                           grace_period_seconds: int = 30) -> Dict[str, Any]:
+        """
+        Evict a pod from its node (uses the eviction API)
+        
+        Args:
+            namespace: Kubernetes namespace
+            pod_name: Name of the pod to evict
+            dry_run: If True, only simulate the action
+            grace_period_seconds: Grace period before eviction
+            
+        Returns:
+            Dict with status and details
+        """
+        action_type = "evict_pod_from_node"
+        
+        try:
+            allowed, reason = self.limiter.can_perform_action(action_type, affected_resources=1)
+            if not allowed:
+                return {
+                    'success': False,
+                    'action': action_type,
+                    'namespace': namespace,
+                    'resource': pod_name,
+                    'error': reason,
+                    'dry_run': dry_run
+                }
+            
+            if dry_run:
+                logger.info(f"[DRY RUN] Would evict pod {namespace}/{pod_name}")
+                return {
+                    'success': True,
+                    'action': action_type,
+                    'namespace': namespace,
+                    'resource': pod_name,
+                    'message': 'Dry run: Pod would be evicted from its node',
+                    'dry_run': True
+                }
+            
+            eviction = client.V1Eviction(
+                metadata=client.V1ObjectMeta(name=pod_name, namespace=namespace),
+                delete_options=client.V1DeleteOptions(grace_period_seconds=grace_period_seconds)
+            )
+            
+            self.policy_api.create_namespaced_pod_eviction(
+                name=pod_name,
+                namespace=namespace,
+                body=eviction
+            )
+            
+            self.limiter.record_action(action_type, namespace, pod_name, True, "Pod evicted")
+            
+            logger.info(f"Evicted pod {namespace}/{pod_name}")
+            
+            return {
+                'success': True,
+                'action': action_type,
+                'namespace': namespace,
+                'resource': pod_name,
+                'message': 'Pod eviction requested successfully',
+                'dry_run': False
+            }
+            
+        except ApiException as e:
+            error_msg = f"Failed to evict pod: {e.reason}"
+            logger.error(error_msg)
+            self.limiter.record_action(action_type, namespace, pod_name, False, error_msg)
+            
+            return {
+                'success': False,
+                'action': action_type,
+                'namespace': namespace,
+                'resource': pod_name,
+                'error': error_msg,
+                'dry_run': dry_run
+            }
+
+    def drain_node(self, node_name: str, dry_run: bool = False, grace_period_seconds: int = 30,
+                   ignore_daemonsets: bool = True, include_kube_system: bool = False) -> Dict[str, Any]:
+        """
+        Drain a node by evicting all non-daemonset pods
+        
+        Args:
+            node_name: Name of the node to drain
+            dry_run: If True, only simulate the action
+            grace_period_seconds: Grace period before eviction
+            ignore_daemonsets: If True, skip pods owned by DaemonSets
+            include_kube_system: If True, include kube-system pods
+            
+        Returns:
+            Dict with status and details
+        """
+        action_type = "drain_node"
+        
+        try:
+            pods = self.core_api.list_pod_for_all_namespaces(
+                field_selector=f"spec.nodeName={node_name}"
+            )
+            
+            evictable_pods = []
+            skipped_pods = []
+            
+            for pod in pods.items:
+                namespace = pod.metadata.namespace
+                
+                if not include_kube_system and namespace == "kube-system":
+                    skipped_pods.append(f"{namespace}/{pod.metadata.name}")
+                    continue
+                
+                if pod.metadata.annotations and pod.metadata.annotations.get("kubernetes.io/config.mirror"):
+                    skipped_pods.append(f"{namespace}/{pod.metadata.name}")
+                    continue
+                
+                if ignore_daemonsets and pod.metadata.owner_references:
+                    if any(owner.kind == "DaemonSet" for owner in pod.metadata.owner_references):
+                        skipped_pods.append(f"{namespace}/{pod.metadata.name}")
+                        continue
+                
+                evictable_pods.append(pod)
+            
+            if not evictable_pods:
+                return {
+                    'success': True,
+                    'action': action_type,
+                    'resource': node_name,
+                    'message': 'No evictable pods found on node',
+                    'evicted_count': 0,
+                    'skipped_pods': skipped_pods,
+                    'dry_run': dry_run
+                }
+            
+            allowed, reason = self.limiter.can_perform_action(action_type, affected_resources=len(evictable_pods))
+            if dry_run:
+                logger.info(f"[DRY RUN] Would drain node {node_name} ({len(evictable_pods)} pods)")
+                return {
+                    'success': True,
+                    'action': action_type,
+                    'resource': node_name,
+                    'message': f'Dry run: Would evict {len(evictable_pods)} pods from node',
+                    'pods': [f"{pod.metadata.namespace}/{pod.metadata.name}" for pod in evictable_pods],
+                    'evicted_count': len(evictable_pods),
+                    'skipped_pods': skipped_pods,
+                    'would_be_blocked': not allowed,
+                    'block_reason': reason if not allowed else None,
+                    'dry_run': True
+                }
+            
+            if not allowed:
+                return {
+                    'success': False,
+                    'action': action_type,
+                    'resource': node_name,
+                    'error': reason,
+                    'found_pods': len(evictable_pods),
+                    'dry_run': dry_run
+                }
+            
+            evicted = []
+            failed = []
+            
+            for pod in evictable_pods:
+                pod_namespace = pod.metadata.namespace
+                pod_name = pod.metadata.name
+                try:
+                    eviction = client.V1Eviction(
+                        metadata=client.V1ObjectMeta(name=pod_name, namespace=pod_namespace),
+                        delete_options=client.V1DeleteOptions(grace_period_seconds=grace_period_seconds)
+                    )
+                    self.policy_api.create_namespaced_pod_eviction(
+                        name=pod_name,
+                        namespace=pod_namespace,
+                        body=eviction
+                    )
+                    evicted.append(f"{pod_namespace}/{pod_name}")
+                except ApiException as e:
+                    logger.error(f"Failed to evict pod {pod_namespace}/{pod_name}: {e.reason}")
+                    failed.append({
+                        "pod": f"{pod_namespace}/{pod_name}",
+                        "error": e.reason
+                    })
+            
+            self.limiter.record_action(action_type, "-", node_name, True,
+                                      f"Evicted {len(evicted)} pods from node")
+            
+            logger.info(f"Drained node {node_name}: evicted {len(evicted)} pods")
+            
+            return {
+                'success': True,
+                'action': action_type,
+                'resource': node_name,
+                'message': f'Evicted {len(evicted)} pods from node',
+                'evicted_pods': evicted,
+                'evicted_count': len(evicted),
+                'failed_evictions': failed,
+                'skipped_pods': skipped_pods,
+                'dry_run': False
+            }
+            
+        except ApiException as e:
+            error_msg = f"Failed to drain node: {e.reason}"
+            logger.error(error_msg)
+            self.limiter.record_action(action_type, "-", node_name, False, error_msg)
+            
+            return {
+                'success': False,
+                'action': action_type,
+                'resource': node_name,
                 'error': error_msg,
                 'dry_run': dry_run
             }

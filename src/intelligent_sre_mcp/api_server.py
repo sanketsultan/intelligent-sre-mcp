@@ -46,7 +46,8 @@ correlation_engine = CorrelationEngine(PROM_URL)
 # Initialize Phase 3: Self-Healing Actions
 healing_actions = HealingActions(
     core_api=client.CoreV1Api(),
-    apps_api=client.AppsV1Api()
+    apps_api=client.AppsV1Api(),
+    policy_api=client.PolicyV1Api()
 )
 
 # OTel configuration
@@ -332,6 +333,37 @@ def cordon_node(node_name: str, dry_run: bool = False):
     Query params: node_name, dry_run (optional, default: false)
     """
     result = healing_actions.cordon_node(node_name, dry_run)
+    return result
+
+@app.post("/healing/evict-pod")
+def evict_pod_from_node(namespace: str, pod_name: str, dry_run: bool = False, grace_period_seconds: int = 30):
+    """
+    Evict a pod from its node using the eviction API
+    Query params: namespace, pod_name, dry_run (optional), grace_period_seconds (optional)
+    """
+    result = healing_actions.evict_pod_from_node(namespace, pod_name, dry_run, grace_period_seconds)
+    return result
+
+@app.post("/healing/drain-node")
+def drain_node(
+    node_name: str,
+    dry_run: bool = False,
+    grace_period_seconds: int = 30,
+    ignore_daemonsets: bool = True,
+    include_kube_system: bool = False
+):
+    """
+    Drain a node by evicting all non-daemonset pods
+    Query params: node_name, dry_run (optional), grace_period_seconds (optional),
+    ignore_daemonsets (optional), include_kube_system (optional)
+    """
+    result = healing_actions.drain_node(
+        node_name,
+        dry_run,
+        grace_period_seconds,
+        ignore_daemonsets,
+        include_kube_system
+    )
     return result
 
 @app.post("/healing/uncordon-node")

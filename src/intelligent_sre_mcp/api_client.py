@@ -313,7 +313,7 @@ def detect_metric_spike(query: str, duration: str = "1h", spike_multiplier: floa
         return f"Error detecting metric spike: {str(e)}"
 
 # ============================================================
-# Phase 3: Self-Healing Actions (24 tools total)
+# Phase 4: Self-Healing Actions (26 tools total)
 # ============================================================
 
 @mcp.tool()
@@ -386,6 +386,86 @@ def delete_failed_pods(namespace: str, label_selector: str = None, dry_run: bool
             return str(response.json())
     except httpx.HTTPError as e:
         return f"Error deleting failed pods: {str(e)}"
+
+@mcp.tool()
+def evict_pod_from_node(namespace: str, pod_name: str, dry_run: bool = False, grace_period_seconds: int = 30) -> str:
+    """
+    Evict a pod from its node using the eviction API.
+    
+    ⚠️  CRITICAL WORKFLOW - ALWAYS FOLLOW THIS ORDER:
+    1. FIRST: Use describe_pod() to confirm the pod is on the target node
+    2. SECOND: Check pod logs and events for root cause
+    3. THIRD: Verify eviction won't break availability (check replicas/PodDisruptionBudget)
+    4. FOURTH: Use dry_run=True to preview the eviction
+    5. FINALLY: Only evict if diagnosis shows it's safe and necessary
+    
+    WHEN TO USE: Node issues, noisy neighbor, maintenance, rescheduling
+    WHEN NOT TO USE: Single-replica critical pods without redundancy
+    
+    Args:
+        namespace: Pod namespace
+        pod_name: Pod name to evict
+        dry_run: If True, only simulate the action (default: False)
+        grace_period_seconds: Grace period before eviction (default: 30)
+    Returns: Eviction result
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            params = {
+                "namespace": namespace,
+                "pod_name": pod_name,
+                "dry_run": dry_run,
+                "grace_period_seconds": grace_period_seconds
+            }
+            response = client.post(f"{API_URL}/healing/evict-pod", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error evicting pod: {str(e)}"
+
+@mcp.tool()
+def drain_node(
+    node_name: str,
+    dry_run: bool = False,
+    grace_period_seconds: int = 30,
+    ignore_daemonsets: bool = True,
+    include_kube_system: bool = False
+) -> str:
+    """
+    Drain a node by evicting all non-daemonset pods.
+    
+    ⚠️  CRITICAL WORKFLOW - ALWAYS FOLLOW THIS ORDER:
+    1. FIRST: Use k8s_get_node() to confirm node status/conditions
+    2. SECOND: Check what pods are running and their redundancy
+    3. THIRD: Cordon the node before draining
+    4. FOURTH: Use dry_run=True to preview which pods will be evicted
+    5. FINALLY: Drain only if it won't violate availability
+    
+    WHEN TO USE: Planned maintenance, node instability, upgrades
+    WHEN NOT TO USE: Production incidents without redundancy or approval
+    
+    Args:
+        node_name: Node name to drain
+        dry_run: If True, only simulate the action (default: False)
+        grace_period_seconds: Grace period before eviction (default: 30)
+        ignore_daemonsets: Skip DaemonSet pods (default: True)
+        include_kube_system: Include kube-system pods (default: False)
+    Returns: Drain result
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            params = {
+                "node_name": node_name,
+                "dry_run": dry_run,
+                "grace_period_seconds": grace_period_seconds,
+                "ignore_daemonsets": ignore_daemonsets,
+                "include_kube_system": include_kube_system
+            }
+            response = client.post(f"{API_URL}/healing/drain-node", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error draining node: {str(e)}"
 
 @mcp.tool()
 def scale_deployment(namespace: str, deployment_name: str, replicas: int, dry_run: bool = False) -> str:

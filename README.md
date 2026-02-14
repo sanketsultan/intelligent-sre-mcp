@@ -50,14 +50,14 @@ Ask Claude: "Show me all pods in the intelligent-sre namespace"
 
 ---
 
-## 24 MCP Tools for Claude
+## 26 MCP Tools for Claude
 
 Claude has access to these tools to query and manage your infrastructure:
 
 **Prometheus (3):** `prom_query`, `prom_query_range`, `prom_targets`  
 **Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`, `k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`  
 **Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`  
-**Healing (7):** `restart_pod`, `delete_failed_pods`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history` 🆕
+**Healing (9):** `restart_pod`, `delete_failed_pods`, `evict_pod_from_node`, `drain_node`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history` 🆕
 
 ---
 

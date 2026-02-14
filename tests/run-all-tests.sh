@@ -10,7 +10,7 @@
 # 1. Infrastructure Health (Kubernetes, Prometheus, API Server)
 # 2. Phase 1: Observability Tools (Metrics, Logs, Traces)
 # 3. Phase 2: Detection Tools (Anomalies, Patterns, Health Scores)
-# 4. Phase 3: Healing Actions (Self-Healing with Safety Controls)
+# 4. Phase 4: Healing Actions (Self-Healing with Safety Controls)
 # 5. Integration Tests (End-to-End Workflows)
 ##############################################################################
 
@@ -306,8 +306,8 @@ test_phase2_detection() {
         "curl -s -X POST -H 'Content-Type: application/json' -d '{\"namespace\":\"intelligent-sre\",\"symptoms\":[\"high_cpu\"]}' http://localhost:30080/detection/rca | jq -e '.analysis != null' > /dev/null"
 }
 
-test_phase3_healing() {
-    print_section "Phase 3: Self-Healing Actions (Dry-Run Mode)"
+test_phase4_healing() {
+    print_section "Phase 4: Self-Healing Actions (Dry-Run Mode)"
     
     # Get a test pod for healing actions
     local test_pod=$(kubectl get pods -n intelligent-sre -l app=intelligent-sre-mcp -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "test-pod")
@@ -347,6 +347,11 @@ test_phase3_healing() {
     run_test_command "healing" \
         "get_healing_history" \
         "curl -s 'http://localhost:30080/healing/action-history?hours=24' | jq -e 'has(\"actions\")' > /dev/null"
+
+    # Run healing scenarios (dry-run) menu
+    run_test_command "healing" \
+        "healing scenarios - dry run" \
+        "printf '13\n\n0\n' | bash tests/test-healing-scenarios.sh"
 }
 
 test_integration() {
@@ -543,7 +548,7 @@ print_summary() {
         echo -e "  ${GREEN}✓${NC} Infrastructure healthy"
         echo -e "  ${GREEN}✓${NC} Phase 1: Observability tools working"
         echo -e "  ${GREEN}✓${NC} Phase 2: Detection algorithms operational"
-        echo -e "  ${GREEN}✓${NC} Phase 3: Self-healing actions ready"
+        echo -e "  ${GREEN}✓${NC} Phase 4: Self-healing actions ready"
         echo -e "  ${GREEN}✓${NC} Safety mechanisms validated"
         echo -e "  ${GREEN}✓${NC} Integration tests passed"
         
@@ -586,7 +591,7 @@ main() {
     test_infrastructure || log_warning "Infrastructure tests had failures"
     test_phase1_observability || log_warning "Phase 1 tests had failures"
     test_phase2_detection || log_warning "Phase 2 tests had failures"
-    test_phase3_healing || log_warning "Phase 3 tests had failures"
+    test_phase4_healing || log_warning "Phase 4 tests had failures"
     test_integration || log_warning "Integration tests had failures"
     test_safety_mechanisms || log_warning "Safety mechanism tests had failures"
     

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Interactive Healing Actions Test Scenarios
-# Phase 3: Self-Healing Capabilities
+# Phase 4: Self-Healing Capabilities
 
 set -e
 
@@ -21,7 +21,7 @@ NAMESPACE="intelligent-sre"
 clear
 echo ""
 echo -e "${CYAN}${BOLD}╔════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}${BOLD}║   Phase 3: Self-Healing Actions Test Scenarios    ║${NC}"
+echo -e "${CYAN}${BOLD}║   Phase 4: Self-Healing Actions Test Scenarios    ║${NC}"
 echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -49,23 +49,25 @@ show_menu() {
     echo -e "${MAGENTA}Pod Healing:${NC}"
     echo -e "  ${CYAN}1.${NC} Test Pod Restart (Dry-Run)"
     echo -e "  ${CYAN}2.${NC} Test Delete Failed Pods (Dry-Run)"
-    echo -e "  ${CYAN}3.${NC} Create & Delete Failing Pod (ACTUAL)"
+    echo -e "  ${CYAN}3.${NC} Test Pod Eviction (Dry-Run)"
+    echo -e "  ${CYAN}4.${NC} Create & Delete Failing Pod (ACTUAL)"
     echo ""
     echo -e "${MAGENTA}Deployment Healing:${NC}"
-    echo -e "  ${CYAN}4.${NC} Test Deployment Scaling (Dry-Run)"
-    echo -e "  ${CYAN}5.${NC} Test Deployment Rollback (Dry-Run)"
-    echo -e "  ${CYAN}6.${NC} Create, Scale & Rollback Deployment (ACTUAL)"
+    echo -e "  ${CYAN}5.${NC} Test Deployment Scaling (Dry-Run)"
+    echo -e "  ${CYAN}6.${NC} Test Deployment Rollback (Dry-Run)"
+    echo -e "  ${CYAN}7.${NC} Create, Scale & Rollback Deployment (ACTUAL)"
     echo ""
     echo -e "${MAGENTA}Node Management:${NC}"
-    echo -e "  ${CYAN}7.${NC} Test Node Cordon/Uncordon (Dry-Run)"
+    echo -e "  ${CYAN}8.${NC} Test Node Cordon/Uncordon (Dry-Run)"
+    echo -e "  ${CYAN}9.${NC} Test Node Drain (Dry-Run)"
     echo ""
     echo -e "${MAGENTA}History & Monitoring:${NC}"
-    echo -e "  ${CYAN}8.${NC} View Healing Action History"
-    echo -e "  ${CYAN}9.${NC} Test Rate Limiting"
+    echo -e "  ${CYAN}10.${NC} View Healing Action History"
+    echo -e "  ${CYAN}11.${NC} Test Rate Limiting"
     echo ""
     echo -e "${MAGENTA}Integration:${NC}"
-    echo -e "  ${CYAN}10.${NC} Detection + Healing Integration Test"
-    echo -e "  ${CYAN}11.${NC} Run All Dry-Run Tests"
+    echo -e "  ${CYAN}12.${NC} Detection + Healing Integration Test"
+    echo -e "  ${CYAN}13.${NC} Run All Dry-Run Tests"
     echo ""
     echo -e "${GREEN}0. Exit${NC}"
     echo ""
@@ -109,8 +111,31 @@ scenario_delete_failed_pods_dry_run() {
     echo -e "${GREEN}✓ Dry-run complete - no pods were deleted${NC}"
 }
 
+scenario_evict_pod_dry_run() {
+    echo -e "\n${BLUE}${BOLD}Scenario 3: Test Pod Eviction (Dry-Run)${NC}"
+    echo -e "${YELLOW}This will simulate evicting a pod from its node${NC}"
+    echo ""
+    
+    echo -e "${CYAN}Getting pods in ${NAMESPACE}...${NC}"
+    POD_NAME=$(kubectl get pods -n "$NAMESPACE" --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    
+    if [ -z "$POD_NAME" ]; then
+        echo -e "${RED}✗ No running pods found in ${NAMESPACE}${NC}"
+        return
+    fi
+    
+    echo -e "${GREEN}Selected pod: ${POD_NAME}${NC}"
+    echo ""
+    
+    echo -e "${CYAN}Calling evict-pod API (dry-run)...${NC}"
+    curl -s -X POST "${API_URL}/healing/evict-pod?namespace=${NAMESPACE}&pod_name=${POD_NAME}&dry_run=true" | python3 -m json.tool
+    
+    echo ""
+    echo -e "${GREEN}✓ Dry-run complete - no changes were made${NC}"
+}
+
 scenario_create_and_delete_failing_pod() {
-    echo -e "\n${BLUE}${BOLD}Scenario 3: Create & Delete Failing Pod (ACTUAL)${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 4: Create & Delete Failing Pod (ACTUAL)${NC}"
     echo -e "${RED}⚠️  This will create and then delete actual pods in your cluster${NC}"
     echo ""
     read -p "Continue? (y/n): " -n 1 -r
@@ -154,7 +179,7 @@ EOF
 }
 
 scenario_scale_deployment_dry_run() {
-    echo -e "\n${BLUE}${BOLD}Scenario 4: Test Deployment Scaling (Dry-Run)${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 5: Test Deployment Scaling (Dry-Run)${NC}"
     echo -e "${YELLOW}This will simulate scaling a deployment${NC}"
     echo ""
     
@@ -176,7 +201,7 @@ scenario_scale_deployment_dry_run() {
 }
 
 scenario_rollback_deployment_dry_run() {
-    echo -e "\n${BLUE}${BOLD}Scenario 5: Test Deployment Rollback (Dry-Run)${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 6: Test Deployment Rollback (Dry-Run)${NC}"
     echo -e "${YELLOW}This will simulate rolling back a deployment${NC}"
     echo ""
     
@@ -197,7 +222,7 @@ scenario_rollback_deployment_dry_run() {
 }
 
 scenario_create_scale_rollback() {
-    echo -e "\n${BLUE}${BOLD}Scenario 6: Create, Scale & Rollback Deployment (ACTUAL)${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 7: Create, Scale & Rollback Deployment (ACTUAL)${NC}"
     echo -e "${RED}⚠️  This will create and modify actual deployments${NC}"
     echo ""
     read -p "Continue? (y/n): " -n 1 -r
@@ -262,7 +287,7 @@ EOF
 }
 
 scenario_node_cordon_uncordon() {
-    echo -e "\n${BLUE}${BOLD}Scenario 7: Test Node Cordon/Uncordon (Dry-Run)${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 8: Test Node Cordon/Uncordon (Dry-Run)${NC}"
     echo -e "${YELLOW}This will simulate cordoning and uncordoning a node${NC}"
     echo ""
     
@@ -289,8 +314,30 @@ scenario_node_cordon_uncordon() {
     echo -e "${GREEN}✓ Dry-run complete - no changes were made${NC}"
 }
 
+scenario_drain_node_dry_run() {
+    echo -e "\n${BLUE}${BOLD}Scenario 9: Test Node Drain (Dry-Run)${NC}"
+    echo -e "${YELLOW}This will simulate draining a node without evictions${NC}"
+    echo ""
+    
+    NODE_NAME=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+    
+    if [ -z "$NODE_NAME" ]; then
+        echo -e "${RED}✗ No nodes found${NC}"
+        return
+    fi
+    
+    echo -e "${GREEN}Selected node: ${NODE_NAME}${NC}"
+    echo ""
+    
+    echo -e "${CYAN}Simulating drain (dry-run)...${NC}"
+    curl -s -X POST "${API_URL}/healing/drain-node?node_name=${NODE_NAME}&dry_run=true" | python3 -m json.tool
+    
+    echo ""
+    echo -e "${GREEN}✓ Dry-run complete - no changes were made${NC}"
+}
+
 scenario_view_healing_history() {
-    echo -e "\n${BLUE}${BOLD}Scenario 8: View Healing Action History${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 10: View Healing Action History${NC}"
     echo -e "${YELLOW}This shows all healing actions taken in the last 24 hours${NC}"
     echo ""
     
@@ -302,7 +349,7 @@ scenario_view_healing_history() {
 }
 
 scenario_test_rate_limiting() {
-    echo -e "\n${BLUE}${BOLD}Scenario 9: Test Rate Limiting${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 11: Test Rate Limiting${NC}"
     echo -e "${YELLOW}This will attempt many actions to trigger rate limiting${NC}"
     echo ""
     
@@ -332,7 +379,7 @@ scenario_test_rate_limiting() {
 }
 
 scenario_detection_healing_integration() {
-    echo -e "\n${BLUE}${BOLD}Scenario 10: Detection + Healing Integration${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 12: Detection + Healing Integration${NC}"
     echo -e "${YELLOW}This demonstrates how detection and healing work together${NC}"
     echo ""
     
@@ -340,7 +387,7 @@ scenario_detection_healing_integration() {
     ANOMALIES=$(curl -s "${API_URL}/detection/anomalies?namespace=${NAMESPACE}")
     echo "$ANOMALIES" | python3 -m json.tool
     
-    TOTAL=$(echo "$ANOMALIES" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total_anomalies', 0))" 2>/dev/null)
+    TOTAL=$(echo "$ANOMALIES" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summary', {}).get('total_anomalies', 0))" 2>/dev/null)
     
     echo ""
     echo -e "${YELLOW}Found ${TOTAL} anomalies${NC}"
@@ -351,17 +398,24 @@ scenario_detection_healing_integration() {
         echo "$ANOMALIES" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
-for anomaly in data.get('anomalies', [])[:3]:
-    print(f\"  - {anomaly.get('description', 'Unknown')} [{anomaly.get('level', 'unknown')}]\")
-    
-    # Suggest healing actions based on anomaly type
-    desc = anomaly.get('description', '').lower()
-    if 'restart' in desc or 'crash' in desc:
-        print(f\"    → Suggested healing: restart_pod\")
-    elif 'memory' in desc or 'cpu' in desc:
-        print(f\"    → Suggested healing: scale_deployment\")
-    elif 'failed' in desc:
-        print(f\"    → Suggested healing: delete_failed_pods\")
+shown = 0
+for category, items in data.get('anomalies', {}).items():
+    for anomaly in items:
+        print(f\"  - {anomaly.get('description', 'Unknown')} [{anomaly.get('level', 'unknown')}]\")
+        
+        # Suggest healing actions based on anomaly type
+        desc = anomaly.get('description', '').lower()
+        if 'restart' in desc or 'crash' in desc:
+            print(f\"    → Suggested healing: restart_pod\")
+        elif 'memory' in desc or 'cpu' in desc:
+            print(f\"    → Suggested healing: scale_deployment\")
+        elif 'failed' in desc:
+            print(f\"    → Suggested healing: delete_failed_pods\")
+        shown += 1
+        if shown >= 3:
+            break
+    if shown >= 3:
+        break
 " 2>/dev/null || echo "  (No specific recommendations)"
     fi
     
@@ -371,7 +425,7 @@ for anomaly in data.get('anomalies', [])[:3]:
 }
 
 scenario_run_all_dry_run() {
-    echo -e "\n${BLUE}${BOLD}Scenario 11: Run All Dry-Run Tests${NC}"
+    echo -e "\n${BLUE}${BOLD}Scenario 13: Run All Dry-Run Tests${NC}"
     echo -e "${YELLOW}This will run all non-destructive tests${NC}"
     echo ""
     
@@ -379,6 +433,9 @@ scenario_run_all_dry_run() {
     sleep 2
     
     scenario_delete_failed_pods_dry_run
+    sleep 2
+
+    scenario_evict_pod_dry_run
     sleep 2
     
     scenario_scale_deployment_dry_run
@@ -388,6 +445,9 @@ scenario_run_all_dry_run() {
     sleep 2
     
     scenario_node_cordon_uncordon
+    sleep 2
+
+    scenario_drain_node_dry_run
     sleep 2
     
     scenario_view_healing_history
@@ -400,27 +460,29 @@ scenario_run_all_dry_run() {
 
 while true; do
     show_menu
-    read -p "Enter choice (0-11): " choice
+    read -p "Enter choice (0-13): " choice
     
     case $choice in
         1) scenario_restart_pod_dry_run ;;
         2) scenario_delete_failed_pods_dry_run ;;
-        3) scenario_create_and_delete_failing_pod ;;
-        4) scenario_scale_deployment_dry_run ;;
-        5) scenario_rollback_deployment_dry_run ;;
-        6) scenario_create_scale_rollback ;;
-        7) scenario_node_cordon_uncordon ;;
-        8) scenario_view_healing_history ;;
-        9) scenario_test_rate_limiting ;;
-        10) scenario_detection_healing_integration ;;
-        11) scenario_run_all_dry_run ;;
+        3) scenario_evict_pod_dry_run ;;
+        4) scenario_create_and_delete_failing_pod ;;
+        5) scenario_scale_deployment_dry_run ;;
+        6) scenario_rollback_deployment_dry_run ;;
+        7) scenario_create_scale_rollback ;;
+        8) scenario_node_cordon_uncordon ;;
+        9) scenario_drain_node_dry_run ;;
+        10) scenario_view_healing_history ;;
+        11) scenario_test_rate_limiting ;;
+        12) scenario_detection_healing_integration ;;
+        13) scenario_run_all_dry_run ;;
         0)
             echo ""
             echo -e "${GREEN}Goodbye!${NC}"
             exit 0
             ;;
         *)
-            echo -e "${RED}Invalid choice. Please select 0-11.${NC}"
+            echo -e "${RED}Invalid choice. Please select 0-13.${NC}"
             ;;
     esac
     

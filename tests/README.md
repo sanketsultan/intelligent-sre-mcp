@@ -16,6 +16,12 @@ Complete testing suite for validating all detection engines and Claude Desktop i
 ```
 **Best for:** Testing specific scenarios
 
+### Healing Scenarios (Phase 4)
+```bash
+./tests/test-healing-scenarios.sh
+```
+**Best for:** Testing healing actions (dry-run + safe workflows)
+
 ### Automated Tests
 ```bash
 python3 tests/test_detection.py
@@ -30,6 +36,7 @@ python3 tests/test_detection.py
 |--------|---------|----------|
 | `test-e2e-with-claude.sh` | Complete end-to-end test with automatic cleanup | 5-10 min + your testing time |
 | `test-scenarios.sh` | Interactive menu with 11 test scenarios | Varies by scenario |
+| `test-healing-scenarios.sh` | Interactive healing menu with 13 scenarios | Varies by scenario |
 | `test_detection.py` | Automated test suite (10 tests) | ~30 seconds |
 
 ---

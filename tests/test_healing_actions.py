@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive tests for Phase 3: Self-Healing Actions
+Comprehensive tests for Phase 4: Self-Healing Actions
 Tests all healing capabilities with safety mechanisms
 """
 
@@ -45,14 +45,15 @@ class TestHealingActions(unittest.TestCase):
         )
         self.assertEqual(pods_response.status_code, 200)
         pods_data = pods_response.json()
+        pods_list = pods_data if isinstance(pods_data, list) else pods_data.get("pods", [])
         
-        if not pods_data.get("pods"):
+        if not pods_list:
             print("  ⚠ No pods found in namespace, skipping test")
             return
         
         # Use first running pod
         test_pod = None
-        for pod in pods_data["pods"]:
+        for pod in pods_list:
             if pod["status"] == "Running":
                 test_pod = pod["name"]
                 break
@@ -100,7 +101,86 @@ class TestHealingActions(unittest.TestCase):
         if data.get('pods'):
             print(f"  Pods that would be deleted: {', '.join(data['pods'][:5])}")
     
-    def test_04_scale_deployment_dry_run(self):
+    def test_04_evict_pod_dry_run(self):
+        """Test pod eviction in dry-run mode"""
+        print("✓ Testing pod eviction (dry-run)...")
+        
+        pods_response = requests.get(
+            f"{API_URL}/k8s/pods",
+            params={"namespace": TEST_NAMESPACE},
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(pods_response.status_code, 200)
+        pods_data = pods_response.json()
+        pods_list = pods_data if isinstance(pods_data, list) else pods_data.get("pods", [])
+        
+        if not pods_list:
+            print("  ⚠ No pods found in namespace, skipping test")
+            return
+        
+        test_pod = None
+        for pod in pods_list:
+            if pod["status"] == "Running":
+                test_pod = pod["name"]
+                break
+        
+        if not test_pod:
+            print("  ⚠ No running pods found, skipping test")
+            return
+        
+        print(f"  Testing with pod: {test_pod}")
+        
+        response = requests.post(
+            f"{API_URL}/healing/evict-pod",
+            params={
+                "namespace": TEST_NAMESPACE,
+                "pod_name": test_pod,
+                "dry_run": True
+            },
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["dry_run"])
+        print(f"  Result: {data['message']}")
+
+    def test_05_drain_node_dry_run(self):
+        """Test draining node in dry-run mode"""
+        print("✓ Testing drain node (dry-run)...")
+        
+        nodes_response = requests.get(
+            f"{API_URL}/k8s/nodes",
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(nodes_response.status_code, 200)
+        nodes_data = nodes_response.json()
+        nodes_list = nodes_data if isinstance(nodes_data, list) else nodes_data.get("nodes", [])
+        
+        if not nodes_list:
+            print("  ⚠ No nodes found, skipping test")
+            return
+        
+        test_node = nodes_list[0]["name"]
+        print(f"  Testing with node: {test_node}")
+        
+        response = requests.post(
+            f"{API_URL}/healing/drain-node",
+            params={
+                "node_name": test_node,
+                "dry_run": True,
+                "ignore_daemonsets": True,
+                "include_kube_system": False
+            },
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["dry_run"])
+        print(f"  Result: {data['message']}")
+
+    def test_06_scale_deployment_dry_run(self):
         """Test scaling deployment in dry-run mode"""
         print("✓ Testing scale deployment (dry-run)...")
         
@@ -124,7 +204,7 @@ class TestHealingActions(unittest.TestCase):
             print(f"  Current replicas: {data['current_replicas']}")
             print(f"  Target replicas: {data['target_replicas']}")
     
-    def test_05_rollback_deployment_dry_run(self):
+    def test_07_rollback_deployment_dry_run(self):
         """Test deployment rollback in dry-run mode"""
         print("✓ Testing rollback deployment (dry-run)...")
         
@@ -143,7 +223,7 @@ class TestHealingActions(unittest.TestCase):
         self.assertTrue(data["dry_run"])
         print(f"  Result: {data['message']}")
     
-    def test_06_cordon_node_dry_run(self):
+    def test_08_cordon_node_dry_run(self):
         """Test cordoning node in dry-run mode"""
         print("✓ Testing cordon node (dry-run)...")
         
@@ -154,12 +234,13 @@ class TestHealingActions(unittest.TestCase):
         )
         self.assertEqual(nodes_response.status_code, 200)
         nodes_data = nodes_response.json()
+        nodes_list = nodes_data if isinstance(nodes_data, list) else nodes_data.get("nodes", [])
         
-        if not nodes_data.get("nodes"):
+        if not nodes_list:
             print("  ⚠ No nodes found, skipping test")
             return
         
-        test_node = nodes_data["nodes"][0]["name"]
+        test_node = nodes_list[0]["name"]
         print(f"  Testing with node: {test_node}")
         
         response = requests.post(
@@ -176,7 +257,7 @@ class TestHealingActions(unittest.TestCase):
         self.assertTrue(data["dry_run"])
         print(f"  Result: {data['message']}")
     
-    def test_07_uncordon_node_dry_run(self):
+    def test_09_uncordon_node_dry_run(self):
         """Test uncordoning node in dry-run mode"""
         print("✓ Testing uncordon node (dry-run)...")
         
@@ -187,12 +268,13 @@ class TestHealingActions(unittest.TestCase):
         )
         self.assertEqual(nodes_response.status_code, 200)
         nodes_data = nodes_response.json()
+        nodes_list = nodes_data if isinstance(nodes_data, list) else nodes_data.get("nodes", [])
         
-        if not nodes_data.get("nodes"):
+        if not nodes_list:
             print("  ⚠ No nodes found, skipping test")
             return
         
-        test_node = nodes_data["nodes"][0]["name"]
+        test_node = nodes_list[0]["name"]
         print(f"  Testing with node: {test_node}")
         
         response = requests.post(
@@ -209,7 +291,7 @@ class TestHealingActions(unittest.TestCase):
         self.assertTrue(data["dry_run"])
         print(f"  Result: {data['message']}")
     
-    def test_08_healing_action_history(self):
+    def test_10_healing_action_history(self):
         """Test getting healing action history"""
         print("✓ Testing healing action history...")
         
@@ -233,7 +315,7 @@ class TestHealingActions(unittest.TestCase):
             for action_type, stats in data['by_action_type'].items():
                 print(f"    {action_type}: {stats['total']} (✓{stats['success']} ✗{stats['failed']})")
     
-    def test_09_rate_limiting(self):
+    def test_11_rate_limiting(self):
         """Test that rate limiting works"""
         print("✓ Testing rate limiting...")
         
@@ -273,7 +355,7 @@ class TestHealingActions(unittest.TestCase):
         # We expect to hit rate limit at some point
         # (unless the limit is very high or test is run separately)
     
-    def test_10_safety_blast_radius(self):
+    def test_12_safety_blast_radius(self):
         """Test blast radius safety mechanism"""
         print("✓ Testing blast radius control...")
         
@@ -298,7 +380,7 @@ class TestHealingActions(unittest.TestCase):
         else:
             print(f"  Dry-run allowed: {data['message']}")
     
-    def test_11_actual_delete_failed_pods(self):
+    def test_13_actual_delete_failed_pods(self):
         """Test actually deleting failed pods (creates test pod first)"""
         print("✓ Testing actual pod deletion...")
         
@@ -307,7 +389,7 @@ class TestHealingActions(unittest.TestCase):
         print("  ⚠ Skipping actual deletion test (use manual test)")
         print("  To test manually: Create a failing pod, then call delete-failed-pods without dry_run")
     
-    def test_12_integration_detection_and_healing(self):
+    def test_14_integration_detection_and_healing(self):
         """Test integration between detection and healing"""
         print("✓ Testing detection + healing integration...")
         
@@ -320,11 +402,15 @@ class TestHealingActions(unittest.TestCase):
         self.assertEqual(detection_response.status_code, 200)
         anomalies = detection_response.json()
         
-        print(f"  Detected {anomalies['total_anomalies']} anomalies")
+        total_anomalies = anomalies.get("summary", {}).get("total_anomalies", 0)
+        print(f"  Detected {total_anomalies} anomalies")
         
         # Check for pod-related issues
-        pod_issues = [a for a in anomalies.get('anomalies', []) 
-                      if 'pod' in a.get('description', '').lower()]
+        pod_issues = []
+        for category, items in anomalies.get('anomalies', {}).items():
+            for item in items:
+                if 'pod' in item.get('description', '').lower():
+                    pod_issues.append(item)
         
         if pod_issues:
             print(f"  Found {len(pod_issues)} pod-related issues")
@@ -356,7 +442,7 @@ def print_test_summary(result):
 
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print("PHASE 3: SELF-HEALING ACTIONS TEST SUITE")
+    print("PHASE 4: SELF-HEALING ACTIONS TEST SUITE")
     print("="*60)
     print(f"API URL: {API_URL}")
     print(f"Test Namespace: {TEST_NAMESPACE}")
