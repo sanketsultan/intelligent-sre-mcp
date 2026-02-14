@@ -80,16 +80,36 @@ docker run --rm -p 30080:8080 sanketsultan/intelligent-sre-mcp:latest
 
 ---
 
-## 26 MCP Tools for Claude
+## 29 MCP Tools for Claude
 
 Claude has access to these tools to query and manage your infrastructure:
 
 **Prometheus (3):** `prom_query`, `prom_query_range`, `prom_targets`  
 **Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`, `k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`  
 **Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`  
-**Healing (9):** `restart_pod`, `delete_failed_pods`, `evict_pod_from_node`, `drain_node`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history` 🆕
+**Healing (9):** `restart_pod`, `delete_failed_pods`, `evict_pod_from_node`, `drain_node`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history`
+**Learning (3):** `get_action_stats`, `get_recurring_issues`, `record_action_outcome` 🆕
 
 ---
+
+## Phase 5: Learning & Optimization
+
+Track healing effectiveness, recurring issues, and outcomes.
+
+**Example prompts:**
+- "Show healing action stats for the last 24 hours"
+- "List recurring issues in the last 24 hours"
+- "Record outcome for action ID 42 as success with 60s recovery"
+
+**Persist action history (optional):**
+```bash
+export ACTION_HISTORY_DB=/path/to/intelligent_sre_actions.db
+```
+
+**Use Postgres for action history (recommended in K8s):**
+```bash
+export ACTION_HISTORY_DB=postgresql://sre:srepassword@postgres:5432/sre
+```
 
 ## Services
 

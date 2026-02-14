@@ -28,6 +28,12 @@ python3 tests/test_detection.py
 ```
 **Best for:** CI/CD, quick validation
 
+### Phase 5 Validation (Learning)
+```bash
+./tests/test-phase5.sh
+```
+**Best for:** Verifying learning endpoints and outcome recording
+
 ---
 
 ## 📋 Test Scripts
@@ -37,6 +43,7 @@ python3 tests/test_detection.py
 | `test-e2e-with-claude.sh` | Complete end-to-end test with automatic cleanup | 5-10 min + your testing time |
 | `test-scenarios.sh` | Interactive menu with 11 test scenarios | Varies by scenario |
 | `test-healing-scenarios.sh` | Interactive healing menu with 13 scenarios | Varies by scenario |
+| `test-phase5.sh` | Phase 5 learning validation (optional real action) | ~30-60 seconds |
 | `test_detection.py` | Automated test suite (10 tests) | ~30 seconds |
 
 ---

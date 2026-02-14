@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, ActionOutcome
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,12 @@ logger = logging.getLogger(__name__)
 class HealingActionLimiter:
     """Rate limiting and safety controls for healing actions"""
     
-    def __init__(self):
+    def __init__(self, action_store: ActionHistoryStore | None = None):
         self.action_history: List[Dict[str, Any]] = []
         self.max_actions_per_hour = 10
         self.max_pods_per_action = 5
         self.cooldown_minutes = 5
+        self.action_store = action_store
         
     def can_perform_action(self, action_type: str, affected_resources: int = 1) -> tuple[bool, str]:
         """Check if action is allowed based on safety limits"""
@@ -54,7 +56,7 @@ class HealingActionLimiter:
         return True, "Action allowed"
     
     def record_action(self, action_type: str, namespace: str, resource: str, 
-                     success: bool, details: str):
+                     success: bool, details: str) -> int | None:
         """Record a healing action for audit and rate limiting"""
         self.action_history.append({
             'timestamp': datetime.utcnow(),
@@ -71,6 +73,16 @@ class HealingActionLimiter:
             a for a in self.action_history 
             if a['timestamp'] > cutoff
         ]
+
+        if self.action_store:
+            return self.action_store.record_action(
+                action_type=action_type,
+                namespace=namespace,
+                resource=resource,
+                success=success,
+                details=details
+            )
+        return None
     
     def get_action_history(self, hours: int = 24) -> List[Dict[str, Any]]:
         """Get action history for the specified time period"""
@@ -88,11 +100,18 @@ class HealingActionLimiter:
 class HealingActions:
     """Automated healing actions for Kubernetes resources"""
     
-    def __init__(self, core_api: client.CoreV1Api, apps_api: client.AppsV1Api, policy_api: client.PolicyV1Api):
+    def __init__(
+        self,
+        core_api: client.CoreV1Api,
+        apps_api: client.AppsV1Api,
+        policy_api: client.PolicyV1Api,
+        action_store: ActionHistoryStore | None = None
+    ):
         self.core_api = core_api
         self.apps_api = apps_api
         self.policy_api = policy_api
-        self.limiter = HealingActionLimiter()
+        self.action_store = action_store
+        self.limiter = HealingActionLimiter(action_store=action_store)
         
     def restart_pod(self, namespace: str, pod_name: str, dry_run: bool = False) -> Dict[str, Any]:
         """
@@ -139,8 +158,8 @@ class HealingActions:
                 grace_period_seconds=30
             )
             
-            self.limiter.record_action(action_type, namespace, pod_name, True, 
-                                      f"Pod deleted for restart")
+            action_id = self.limiter.record_action(action_type, namespace, pod_name, True, 
+                                                  f"Pod deleted for restart")
             
             logger.info(f"Restarted pod {namespace}/{pod_name}")
             
@@ -150,13 +169,14 @@ class HealingActions:
                 'namespace': namespace,
                 'resource': pod_name,
                 'message': 'Pod deleted, controller will recreate it',
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to restart pod: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, namespace, pod_name, False, error_msg)
+            action_id = self.limiter.record_action(action_type, namespace, pod_name, False, error_msg)
             
             return {
                 'success': False,
@@ -164,6 +184,7 @@ class HealingActions:
                 'namespace': namespace,
                 'resource': pod_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
     
@@ -246,8 +267,8 @@ class HealingActions:
                 except ApiException as e:
                     logger.error(f"Failed to delete pod {pod.metadata.name}: {e.reason}")
             
-            self.limiter.record_action(action_type, namespace, f"{len(deleted_pods)} pods", 
-                                      True, f"Deleted {len(deleted_pods)} failed pods")
+            action_id = self.limiter.record_action(action_type, namespace, f"{len(deleted_pods)} pods", 
+                                                  True, f"Deleted {len(deleted_pods)} failed pods")
             
             logger.info(f"Deleted {len(deleted_pods)} failed pods in {namespace}")
             
@@ -258,19 +279,21 @@ class HealingActions:
                 'message': f'Deleted {len(deleted_pods)} failed pods',
                 'deleted_pods': deleted_pods,
                 'deleted_count': len(deleted_pods),
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to delete failed pods: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, namespace, "multiple", False, error_msg)
+            action_id = self.limiter.record_action(action_type, namespace, "multiple", False, error_msg)
             
             return {
                 'success': False,
                 'action': action_type,
                 'namespace': namespace,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
 
@@ -324,7 +347,7 @@ class HealingActions:
                 body=eviction
             )
             
-            self.limiter.record_action(action_type, namespace, pod_name, True, "Pod evicted")
+            action_id = self.limiter.record_action(action_type, namespace, pod_name, True, "Pod evicted")
             
             logger.info(f"Evicted pod {namespace}/{pod_name}")
             
@@ -334,13 +357,14 @@ class HealingActions:
                 'namespace': namespace,
                 'resource': pod_name,
                 'message': 'Pod eviction requested successfully',
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to evict pod: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, namespace, pod_name, False, error_msg)
+            action_id = self.limiter.record_action(action_type, namespace, pod_name, False, error_msg)
             
             return {
                 'success': False,
@@ -348,6 +372,7 @@ class HealingActions:
                 'namespace': namespace,
                 'resource': pod_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
 
@@ -455,8 +480,8 @@ class HealingActions:
                         "error": e.reason
                     })
             
-            self.limiter.record_action(action_type, "-", node_name, True,
-                                      f"Evicted {len(evicted)} pods from node")
+            action_id = self.limiter.record_action(action_type, "-", node_name, True,
+                                                  f"Evicted {len(evicted)} pods from node")
             
             logger.info(f"Drained node {node_name}: evicted {len(evicted)} pods")
             
@@ -469,19 +494,21 @@ class HealingActions:
                 'evicted_count': len(evicted),
                 'failed_evictions': failed,
                 'skipped_pods': skipped_pods,
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to drain node: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, "-", node_name, False, error_msg)
+            action_id = self.limiter.record_action(action_type, "-", node_name, False, error_msg)
             
             return {
                 'success': False,
                 'action': action_type,
                 'resource': node_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
     
@@ -556,8 +583,8 @@ class HealingActions:
                 body=deployment
             )
             
-            self.limiter.record_action(action_type, namespace, deployment_name, True,
-                                      f"Scaled from {current_replicas} to {replicas}")
+            action_id = self.limiter.record_action(action_type, namespace, deployment_name, True,
+                                                  f"Scaled from {current_replicas} to {replicas}")
             
             logger.info(f"Scaled deployment {namespace}/{deployment_name} from {current_replicas} to {replicas}")
             
@@ -569,13 +596,14 @@ class HealingActions:
                 'message': f'Scaled from {current_replicas} to {replicas} replicas',
                 'previous_replicas': current_replicas,
                 'current_replicas': replicas,
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to scale deployment: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, namespace, deployment_name, False, error_msg)
+            action_id = self.limiter.record_action(action_type, namespace, deployment_name, False, error_msg)
             
             return {
                 'success': False,
@@ -583,6 +611,7 @@ class HealingActions:
                 'namespace': namespace,
                 'resource': deployment_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
     
@@ -647,8 +676,8 @@ class HealingActions:
             )
             
             revision_msg = f"revision {revision}" if revision else "previous revision"
-            self.limiter.record_action(action_type, namespace, deployment_name, True,
-                                      f"Rolled back to {revision_msg}")
+            action_id = self.limiter.record_action(action_type, namespace, deployment_name, True,
+                                                  f"Rolled back to {revision_msg}")
             
             logger.info(f"Rolled back deployment {namespace}/{deployment_name} to {revision_msg}")
             
@@ -659,13 +688,14 @@ class HealingActions:
                 'resource': deployment_name,
                 'message': f'Rolled back to {revision_msg}',
                 'target_revision': revision,
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to rollback deployment: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, namespace, deployment_name, False, error_msg)
+            action_id = self.limiter.record_action(action_type, namespace, deployment_name, False, error_msg)
             
             return {
                 'success': False,
@@ -673,6 +703,7 @@ class HealingActions:
                 'namespace': namespace,
                 'resource': deployment_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
     
@@ -727,7 +758,7 @@ class HealingActions:
             node.spec.unschedulable = True
             self.core_api.patch_node(name=node_name, body=node)
             
-            self.limiter.record_action(action_type, "-", node_name, True, "Node cordoned")
+            action_id = self.limiter.record_action(action_type, "-", node_name, True, "Node cordoned")
             
             logger.info(f"Cordoned node {node_name}")
             
@@ -736,19 +767,21 @@ class HealingActions:
                 'action': action_type,
                 'resource': node_name,
                 'message': f'Node {node_name} marked as unschedulable',
+                'action_id': action_id,
                 'dry_run': False
             }
             
         except ApiException as e:
             error_msg = f"Failed to cordon node: {e.reason}"
             logger.error(error_msg)
-            self.limiter.record_action(action_type, "-", node_name, False, error_msg)
+            action_id = self.limiter.record_action(action_type, "-", node_name, False, error_msg)
             
             return {
                 'success': False,
                 'action': action_type,
                 'resource': node_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
     
@@ -792,6 +825,7 @@ class HealingActions:
             node.spec.unschedulable = False
             self.core_api.patch_node(name=node_name, body=node)
             
+            action_id = self.limiter.record_action(action_type, "-", node_name, True, "Node uncordoned")
             logger.info(f"Uncordoned node {node_name}")
             
             return {
@@ -799,6 +833,7 @@ class HealingActions:
                 'action': action_type,
                 'resource': node_name,
                 'message': f'Node {node_name} marked as schedulable',
+                'action_id': action_id,
                 'dry_run': False
             }
             
@@ -806,24 +841,26 @@ class HealingActions:
             error_msg = f"Failed to uncordon node: {e.reason}"
             logger.error(error_msg)
             
+            action_id = self.limiter.record_action(action_type, "-", node_name, False, error_msg)
             return {
                 'success': False,
                 'action': action_type,
                 'resource': node_name,
                 'error': error_msg,
+                'action_id': action_id,
                 'dry_run': dry_run
             }
     
     def get_action_history(self, hours: int = 24) -> Dict[str, Any]:
         """Get healing action history"""
+        if self.action_store:
+            return self.action_store.history_summary(hours)
         history = self.limiter.get_action_history(hours)
         
-        # Calculate statistics
         total_actions = len(history)
         successful_actions = sum(1 for a in history if a['success'])
         failed_actions = total_actions - successful_actions
         
-        # Group by action type
         action_types = {}
         for action in history:
             action_type = action['action_type']
@@ -843,5 +880,38 @@ class HealingActions:
             'failed_actions': failed_actions,
             'success_rate': round(successful_actions / total_actions * 100, 1) if total_actions > 0 else 0,
             'by_action_type': action_types,
-            'recent_actions': history[-10:] if history else []  # Last 10 actions
+            'recent_actions': history[-10:] if history else []
         }
+
+    def get_action_stats(self, hours: int = 24) -> Dict[str, Any]:
+        if not self.action_store:
+            return {"error": "Action history store not configured"}
+        return self.action_store.action_stats(hours)
+
+    def get_recurring_issues(self, hours: int = 24, min_count: int = 2) -> Dict[str, Any]:
+        if not self.action_store:
+            return {"error": "Action history store not configured"}
+        return {
+            "time_period_hours": hours,
+            "min_count": min_count,
+            "recurring_issues": self.action_store.recurring_issues(hours, min_count)
+        }
+
+    def record_action_outcome(
+        self,
+        action_id: int,
+        outcome: str,
+        resolution_time_seconds: float | None = None,
+        notes: str | None = None
+    ) -> Dict[str, Any]:
+        if not self.action_store:
+            return {"success": False, "error": "Action history store not configured"}
+        updated = self.action_store.update_outcome(
+            ActionOutcome(
+                action_id=action_id,
+                outcome=outcome,
+                resolution_time_seconds=resolution_time_seconds,
+                notes=notes
+            )
+        )
+        return {"success": updated, "action_id": action_id}

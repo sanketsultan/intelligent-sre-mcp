@@ -313,7 +313,7 @@ def detect_metric_spike(query: str, duration: str = "1h", spike_multiplier: floa
         return f"Error detecting metric spike: {str(e)}"
 
 # ============================================================
-# Phase 4: Self-Healing Actions (26 tools total)
+# Phase 5: Learning & Optimization (29 tools total)
 # ============================================================
 
 @mcp.tool()
@@ -627,6 +627,66 @@ def get_healing_history(hours: int = 24) -> str:
             return str(response.json())
     except httpx.HTTPError as e:
         return f"Error getting healing history: {str(e)}"
+
+@mcp.tool()
+def get_action_stats(hours: int = 24) -> str:
+    """
+    Get healing action effectiveness statistics.
+    Args:
+        hours: Number of hours of history to analyze (default: 24)
+    Returns: Action stats with success rates and averages
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            params = {"hours": hours}
+            response = client.get(f"{API_URL}/learning/action-stats", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error getting action stats: {str(e)}"
+
+@mcp.tool()
+def get_recurring_issues(hours: int = 24, min_count: int = 2) -> str:
+    """
+    Identify recurring issues based on healing actions.
+    Args:
+        hours: Number of hours of history to analyze (default: 24)
+        min_count: Minimum occurrences to consider recurring (default: 2)
+    Returns: Recurring issues grouped by resource and action type
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            params = {"hours": hours, "min_count": min_count}
+            response = client.get(f"{API_URL}/learning/recurring-issues", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error getting recurring issues: {str(e)}"
+
+@mcp.tool()
+def record_action_outcome(action_id: int, outcome: str, resolution_time_seconds: float = None, notes: str = None) -> str:
+    """
+    Record the outcome and resolution time for a healing action.
+    Args:
+        action_id: Action ID returned by a healing action
+        outcome: Outcome label (e.g., success, partial, failed)
+        resolution_time_seconds: Time to recovery in seconds (optional)
+        notes: Optional notes about the outcome
+    Returns: Outcome recording result
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            payload = {
+                "action_id": action_id,
+                "outcome": outcome,
+                "resolution_time_seconds": resolution_time_seconds,
+                "notes": notes
+            }
+            response = client.post(f"{API_URL}/learning/record-outcome", json=payload)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error recording action outcome: {str(e)}"
 
 def main():
     # IMPORTANT: do not print to stdout in stdio servers

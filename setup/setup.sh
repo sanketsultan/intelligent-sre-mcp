@@ -92,7 +92,7 @@ fi
 print_success "Kubernetes cluster is accessible"
 
 # Get the project directory
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 print_success "Project directory: $PROJECT_DIR"
@@ -133,6 +133,12 @@ print_success "Grafana deployed"
 
 kubectl apply -f k8s/alertmanager.yaml >/dev/null 2>&1
 print_success "AlertManager deployed"
+
+kubectl apply -f k8s/postgres-pv.yaml >/dev/null 2>&1
+print_success "Postgres PV applied"
+
+kubectl apply -f k8s/postgres.yaml >/dev/null 2>&1
+print_success "Postgres deployed"
 
 kubectl apply -f k8s/otel-collector.yaml >/dev/null 2>&1
 print_success "OpenTelemetry Collector deployed"

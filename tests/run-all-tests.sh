@@ -346,7 +346,15 @@ test_phase4_healing() {
     # Test healing history
     run_test_command "healing" \
         "get_healing_history" \
-        "curl -s 'http://localhost:30080/healing/action-history?hours=24' | jq -e 'has(\"actions\")' > /dev/null"
+        "curl -s 'http://localhost:30080/healing/action-history?hours=24' | jq -e 'has(\"recent_actions\")' > /dev/null"
+
+    run_test_command "learning" \
+        "get_action_stats" \
+        "curl -s 'http://localhost:30080/learning/action-stats?hours=24' | jq -e 'has(\"by_action_type\")' > /dev/null"
+
+    run_test_command "learning" \
+        "get_recurring_issues" \
+        "curl -s 'http://localhost:30080/learning/recurring-issues?hours=24&min_count=2' | jq -e 'has(\"recurring_issues\")' > /dev/null"
 
     # Run healing scenarios (dry-run) menu
     run_test_command "healing" \

@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./setup/quickstart.sh [all|docker|k8s|claude|local]
 
 MODE=${1:-all}
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 print() {
   echo -e "\033[0;34m==>\033[0m $1"

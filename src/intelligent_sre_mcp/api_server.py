@@ -25,6 +25,7 @@ from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
 from intelligent_sre_mcp.tools.pattern_recognition import PatternRecognizer
 from intelligent_sre_mcp.tools.correlation import CorrelationEngine
 from intelligent_sre_mcp.tools.healing_actions import HealingActions
+from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore
 from kubernetes import client
 
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
@@ -44,10 +45,13 @@ pattern_recognizer = PatternRecognizer(PROM_URL)
 correlation_engine = CorrelationEngine(PROM_URL)
 
 # Initialize Phase 3: Self-Healing Actions
+action_store = ActionHistoryStore()
+
 healing_actions = HealingActions(
     core_api=client.CoreV1Api(),
     apps_api=client.AppsV1Api(),
-    policy_api=client.PolicyV1Api()
+    policy_api=client.PolicyV1Api(),
+    action_store=action_store
 )
 
 # OTel configuration
@@ -383,6 +387,45 @@ def get_action_history(hours: int = 24):
     """
     result = healing_actions.get_action_history(hours)
     return result
+
+# ==================== Phase 5: Learning & Optimization ====================
+
+class ActionOutcomeRequest(BaseModel):
+    action_id: int
+    outcome: str
+    resolution_time_seconds: Optional[float] = None
+    notes: Optional[str] = None
+
+
+@app.get("/learning/action-stats")
+def get_action_stats(hours: int = 24):
+    """
+    Get healing action effectiveness statistics
+    Query params: hours (optional, default: 24)
+    """
+    return healing_actions.get_action_stats(hours)
+
+
+@app.get("/learning/recurring-issues")
+def get_recurring_issues(hours: int = 24, min_count: int = 2):
+    """
+    Identify recurring issues based on healing actions
+    Query params: hours (optional, default: 24), min_count (optional, default: 2)
+    """
+    return healing_actions.get_recurring_issues(hours, min_count)
+
+
+@app.post("/learning/record-outcome")
+def record_action_outcome(request: ActionOutcomeRequest):
+    """
+    Record the outcome and resolution time of a healing action
+    """
+    return healing_actions.record_action_outcome(
+        action_id=request.action_id,
+        outcome=request.outcome,
+        resolution_time_seconds=request.resolution_time_seconds,
+        notes=request.notes
+    )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)

@@ -61,7 +61,8 @@ echo ""
 
 # Step 3: Check MCP script
 echo -e "${CYAN}[3/5] Checking MCP script...${NC}"
-MCP_SCRIPT="/Users/$(whoami)/Desktop/intelligent-sre-mcp/setup/run_mcp_api.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MCP_SCRIPT="$SCRIPT_DIR/run_mcp_api.sh"
 
 if [ -f "$MCP_SCRIPT" ]; then
     echo -e "${GREEN}✓ MCP script exists${NC}"
@@ -137,9 +138,10 @@ echo ""
 echo -e "${CYAN}Expected MCP Tools:${NC}"
 echo "  Phase 1: Observability (3 tools)"
 echo "  Phase 2: Detection (6 tools)"
-echo "  Phase 4: Self-Healing (9 tools) ← NEW!"
+echo "  Phase 4: Self-Healing (9 tools)"
+echo "  Phase 5: Learning (3 tools) ← NEW!"
 echo "  Kubernetes Ops (8 tools)"
-echo "  ${BOLD}Total: 26 tools${NC}"
+echo "  ${BOLD}Total: 29 tools${NC}"
 echo ""
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -150,6 +152,8 @@ echo ""
 
 echo -e "${BOLD}${CYAN}Test healing actions with these prompts:${NC}"
 echo '  • "Show me healing action history"'
+echo '  • "Show healing action stats"'
+echo '  • "Show recurring issues from last 24 hours"'
 echo '  • "What is the health score of intelligent-sre namespace?"'
 echo '  • "Delete failed pods (dry run first)"'
 echo '  • "Scale test-app deployment to 2 replicas (dry run)"'

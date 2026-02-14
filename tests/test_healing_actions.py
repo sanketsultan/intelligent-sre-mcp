@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Comprehensive tests for Phase 4: Self-Healing Actions
-Tests all healing capabilities with safety mechanisms
+Comprehensive tests for Phase 5: Learning & Optimization
+Tests healing actions and learning endpoints with safety mechanisms
 """
 
 import unittest
@@ -314,6 +314,70 @@ class TestHealingActions(unittest.TestCase):
             print("\n  Actions by type:")
             for action_type, stats in data['by_action_type'].items():
                 print(f"    {action_type}: {stats['total']} (✓{stats['success']} ✗{stats['failed']})")
+
+    def test_15_action_stats(self):
+        """Test getting action effectiveness statistics"""
+        print("✓ Testing action stats...")
+        
+        response = requests.get(
+            f"{API_URL}/learning/action-stats",
+            params={"hours": 24},
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("by_action_type", data)
+        print(f"  Total actions: {data.get('total_actions', 0)}")
+
+    def test_16_recurring_issues(self):
+        """Test recurring issues detection"""
+        print("✓ Testing recurring issues...")
+        
+        response = requests.get(
+            f"{API_URL}/learning/recurring-issues",
+            params={"hours": 24, "min_count": 2},
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("recurring_issues", data)
+        print(f"  Recurring issues: {len(data.get('recurring_issues', []))}")
+
+    def test_17_record_action_outcome(self):
+        """Test recording action outcomes"""
+        print("✓ Testing action outcome recording...")
+        
+        history_response = requests.get(
+            f"{API_URL}/healing/action-history",
+            params={"hours": 24},
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(history_response.status_code, 200)
+        history = history_response.json()
+        recent_actions = history.get("recent_actions", [])
+        if not recent_actions:
+            print("  ⚠ No actions found, skipping outcome recording")
+            return
+        
+        action_id = recent_actions[-1].get("id")
+        if not action_id:
+            print("  ⚠ Action ID missing, skipping outcome recording")
+            return
+        
+        response = requests.post(
+            f"{API_URL}/learning/record-outcome",
+            json={
+                "action_id": action_id,
+                "outcome": "success",
+                "resolution_time_seconds": 30.5,
+                "notes": "Automated test"
+            },
+            timeout=TEST_TIMEOUT
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get("success"))
+        print(f"  Outcome recorded for action {action_id}")
     
     def test_11_rate_limiting(self):
         """Test that rate limiting works"""
@@ -442,7 +506,7 @@ def print_test_summary(result):
 
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print("PHASE 4: SELF-HEALING ACTIONS TEST SUITE")
+    print("PHASE 5: LEARNING & OPTIMIZATION TEST SUITE")
     print("="*60)
     print(f"API URL: {API_URL}")
     print(f"Test Namespace: {TEST_NAMESPACE}")

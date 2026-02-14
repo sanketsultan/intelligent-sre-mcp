@@ -2,7 +2,7 @@
 # Quick setup script for Claude Desktop configuration
 
 CONFIG_FILE="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "🔧 Updating Claude Desktop configuration..."
 
