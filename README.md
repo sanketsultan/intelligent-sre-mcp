@@ -1,7 +1,8 @@
 # Intelligent SRE MCP
 
 > **Talk to your Kubernetes cluster through Claude Desktop.**  
-> Ask questions in plain English and get real-time insights from Prometheus, Grafana, and K8s.
+> Ask questions in plain English and get real-time insights from Prometheus, Grafana, and K8s.  
+> **NEW:** Claude can now **automatically heal** issues with built-in safety controls!
 
 An intelligent SRE copilot that connects Claude Desktop to your entire monitoring stack via the Model Context Protocol (MCP).
 
@@ -11,13 +12,15 @@ An intelligent SRE copilot that connects Claude Desktop to your entire monitorin
 - 📊 **Analyzes patterns** - Recurring failures, resource exhaustion, cascading issues
 - 🔗 **Correlates signals** - Links metrics, events, and alerts for root cause analysis
 - 💯 **Calculates health scores** - 0-100 system health with recommendations
-- 🤖 **Natural language queries** - "Is my system healthy?", "Why is this pod failing?"
+- 🔧 **Self-healing actions** - Restart pods, scale deployments, rollback releases (NEW!)
+- 🤖 **Natural language queries** - "Is my system healthy?", "Fix that crashing pod"
 
 **Example queries:**
 - "Detect anomalies in my cluster"
 - "What patterns do you see in pod failures?"
-- "Show me correlations between restarts and events"
-- "Run comprehensive analysis"
+- "Restart the api-server pod that keeps crashing"
+- "Scale up the frontend deployment to 5 replicas"
+- "Show me the healing action history"
 
 ## Quick Start
 
@@ -47,13 +50,14 @@ Ask Claude: "Show me all pods in the intelligent-sre namespace"
 
 ---
 
-## 17 MCP Tools for Claude
+## 24 MCP Tools for Claude
 
-Claude has access to these tools to query your infrastructure:
+Claude has access to these tools to query and manage your infrastructure:
 
 **Prometheus (3):** `prom_query`, `prom_query_range`, `prom_targets`  
 **Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`, `k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`  
-**Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`
+**Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`  
+**Healing (7):** `restart_pod`, `delete_failed_pods`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history` 🆕
 
 ---
 

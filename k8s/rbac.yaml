@@ -13,25 +13,53 @@ metadata:
   labels:
     app: intelligent-sre-mcp
 rules:
+# Read-only permissions for observability (also used for applying configurations)
 - apiGroups: [""]
   resources:
   - pods
   - pods/log
-  - nodes
   - services
   - endpoints
   - namespaces
   - events
   - configmaps
   - secrets
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+# Node operations (read + cordon/uncordon)
+- apiGroups: [""]
+  resources:
+  - nodes
+  verbs: ["get", "list", "watch", "patch", "update"]
+
+# Pod healing operations (delete for restart, delete failed pods, create for testing, update for fixing)
+- apiGroups: [""]
+  resources:
+  - pods
+  verbs: ["create", "delete", "patch", "update"]
+
+# Pod spec modifications (for applying fixes)
+- apiGroups: [""]
+  resources:
+  - pods/ephemeralcontainers
+  verbs: ["patch", "update"]
+
+# Deployment healing operations (scale, rollback, apply configurations)
 - apiGroups: ["apps"]
   resources:
   - deployments
   - replicasets
   - statefulsets
   - daemonsets
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list", "watch", "create", "patch", "update", "delete"]
+
+# Deployment rollback operations
+- apiGroups: ["apps"]
+  resources:
+  - deployments/rollback
+  verbs: ["create"]
+
+# Batch operations
 - apiGroups: ["batch"]
   resources:
   - jobs

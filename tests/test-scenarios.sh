@@ -16,6 +16,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}Intelligent SRE MCP - Test Scenarios${NC}"
+echo -e "${BLUE}Phase 2: Detection | Phase 3: Healing${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
@@ -377,6 +378,7 @@ show_menu() {
     echo -e "${BLUE}Test Scenarios Menu${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
+    echo -e "${GREEN}Detection Scenarios:${NC}"
     echo "1. Baseline Health Check (safe)"
     echo "2. High CPU Usage Simulation"
     echo "3. High Memory Usage Simulation"
@@ -385,9 +387,13 @@ show_menu() {
     echo "6. Cascading Failure Simulation"
     echo "7. Comprehensive Analysis"
     echo "8. Custom Metric Spike Detection"
+    echo ""
+    echo -e "${MAGENTA}Integration & Testing:${NC}"
     echo "9. Claude Desktop Integration Test"
-    echo "10. Run All Scenarios (sequential)"
-    echo "11. 🚀 End-to-End Test with Claude (Recommended)"
+    echo "10. Run All Detection Scenarios"
+    echo "11. 🚀 End-to-End Test with Claude"
+    echo "12. 🔧 Self-Healing Actions Test (Phase 3)"
+    echo ""
     echo "0. Exit"
     echo ""
     echo -n "Select scenario: "
@@ -441,6 +447,13 @@ while true; do
             # Get the directory where this script is located
             SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
             exec "$SCRIPT_DIR/test-e2e-with-claude.sh"
+            ;;
+        12)
+            echo ""
+            echo -e "${GREEN}Launching Self-Healing Actions Test...${NC}"
+            echo ""
+            SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+            exec "$SCRIPT_DIR/test-healing-scenarios.sh"
             ;;
         0) 
             echo ""

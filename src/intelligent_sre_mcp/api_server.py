@@ -24,6 +24,8 @@ from intelligent_sre_mcp.tools.k8s_tools import KubernetesTools
 from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
 from intelligent_sre_mcp.tools.pattern_recognition import PatternRecognizer
 from intelligent_sre_mcp.tools.correlation import CorrelationEngine
+from intelligent_sre_mcp.tools.healing_actions import HealingActions
+from kubernetes import client
 
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
@@ -40,6 +42,12 @@ k8s_tools = KubernetesTools()
 anomaly_detector = AnomalyDetector(PROM_URL)
 pattern_recognizer = PatternRecognizer(PROM_URL)
 correlation_engine = CorrelationEngine(PROM_URL)
+
+# Initialize Phase 3: Self-Healing Actions
+healing_actions = HealingActions(
+    core_api=client.CoreV1Api(),
+    apps_api=client.AppsV1Api()
+)
 
 # OTel configuration
 def configure_otel():
@@ -279,9 +287,70 @@ def comprehensive_analysis(namespace: Optional[str] = None):
         "overall_status": health["status"]
     }
 
+# ==================== Phase 3: Self-Healing Actions ====================
+
+@app.post("/healing/restart-pod")
+def restart_pod(namespace: str, pod_name: str, dry_run: bool = False):
+    """
+    Restart a pod by deleting it (controller will recreate)
+    Query params: namespace, pod_name, dry_run (optional, default: false)
+    """
+    result = healing_actions.restart_pod(namespace, pod_name, dry_run)
+    return result
+
+@app.post("/healing/delete-failed-pods")
+def delete_failed_pods(namespace: str, label_selector: Optional[str] = None, dry_run: bool = False):
+    """
+    Delete all failed/completed pods in a namespace
+    Query params: namespace, label_selector (optional), dry_run (optional, default: false)
+    """
+    result = healing_actions.delete_failed_pods(namespace, label_selector, dry_run)
+    return result
+
+@app.post("/healing/scale-deployment")
+def scale_deployment(namespace: str, deployment_name: str, replicas: int, dry_run: bool = False):
+    """
+    Scale a deployment to specified number of replicas
+    Query params: namespace, deployment_name, replicas, dry_run (optional, default: false)
+    """
+    result = healing_actions.scale_deployment(namespace, deployment_name, replicas, dry_run)
+    return result
+
+@app.post("/healing/rollback-deployment")
+def rollback_deployment(namespace: str, deployment_name: str, revision: Optional[int] = None, dry_run: bool = False):
+    """
+    Rollback a deployment to a previous revision
+    Query params: namespace, deployment_name, revision (optional, default: previous), dry_run (optional, default: false)
+    """
+    result = healing_actions.rollback_deployment(namespace, deployment_name, revision, dry_run)
+    return result
+
+@app.post("/healing/cordon-node")
+def cordon_node(node_name: str, dry_run: bool = False):
+    """
+    Cordon a node (mark as unschedulable)
+    Query params: node_name, dry_run (optional, default: false)
+    """
+    result = healing_actions.cordon_node(node_name, dry_run)
+    return result
+
+@app.post("/healing/uncordon-node")
+def uncordon_node(node_name: str, dry_run: bool = False):
+    """
+    Uncordon a node (mark as schedulable)
+    Query params: node_name, dry_run (optional, default: false)
+    """
+    result = healing_actions.uncordon_node(node_name, dry_run)
+    return result
+
+@app.get("/healing/action-history")
+def get_action_history(hours: int = 24):
+    """
+    Get healing action history
+    Query params: hours (optional, default: 24)
+    """
+    result = healing_actions.get_action_history(hours)
+    return result
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
-
-
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=8080)
