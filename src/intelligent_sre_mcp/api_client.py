@@ -194,6 +194,124 @@ def k8s_get_events(namespace: str = None, resource_type: str = None, resource_na
     except httpx.HTTPError as e:
         return f"Error getting events: {str(e)}"
 
+# ============================================================
+# Phase 2: Intelligent Detection Tools
+# ============================================================
+
+@mcp.tool()
+def detect_anomalies(namespace: str = None) -> str:
+    """
+    Detect anomalies in CPU, memory, pod restarts, and pending pods.
+    Uses statistical analysis to identify abnormal behavior.
+    Args:
+        namespace: Optional namespace to scope analysis (None = all namespaces)
+    Returns: Comprehensive anomaly report with severity levels and recommendations
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT * 2) as client:
+            params = {"namespace": namespace} if namespace else {}
+            response = client.get(f"{API_URL}/detection/anomalies", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error detecting anomalies: {str(e)}"
+
+@mcp.tool()
+def get_health_score(namespace: str = None) -> str:
+    """
+    Calculate overall system health score (0-100) based on detected anomalies.
+    Provides quick assessment of cluster health with actionable recommendations.
+    Args:
+        namespace: Optional namespace to scope analysis (None = all namespaces)
+    Returns: Health score, status, and top recommendations
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT * 2) as client:
+            params = {"namespace": namespace} if namespace else {}
+            response = client.get(f"{API_URL}/detection/health-score", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error getting health score: {str(e)}"
+
+@mcp.tool()
+def detect_patterns(namespace: str = None) -> str:
+    """
+    Detect patterns such as recurring pod failures, cyclic CPU spikes, 
+    resource exhaustion trends, and cascading failures.
+    Args:
+        namespace: Optional namespace to scope analysis (None = all namespaces)
+    Returns: Detected patterns with confidence levels, occurrences, and recommendations
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT * 2) as client:
+            params = {"namespace": namespace} if namespace else {}
+            response = client.get(f"{API_URL}/detection/patterns", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error detecting patterns: {str(e)}"
+
+@mcp.tool()
+def detect_correlations(namespace: str = None) -> str:
+    """
+    Correlate metrics, Kubernetes events, and anomalies to identify root causes.
+    Links pod restarts with events, CPU spikes with deployments, memory issues with OOMKills.
+    Args:
+        namespace: Optional namespace to scope analysis (None = all namespaces)
+    Returns: Correlation report with confidence scores and impact assessment
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT * 2) as client:
+            params = {"namespace": namespace} if namespace else {}
+            response = client.get(f"{API_URL}/detection/correlations", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error detecting correlations: {str(e)}"
+
+@mcp.tool()
+def comprehensive_analysis(namespace: str = None) -> str:
+    """
+    Run comprehensive system analysis combining health score, anomaly detection,
+    pattern recognition, and correlation analysis in one call.
+    Best for getting complete picture of cluster health.
+    Args:
+        namespace: Optional namespace to scope analysis (None = all namespaces)
+    Returns: Complete analysis report with health score, anomalies, patterns, and correlations
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT * 3) as client:
+            params = {"namespace": namespace} if namespace else {}
+            response = client.get(f"{API_URL}/detection/comprehensive", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error running comprehensive analysis: {str(e)}"
+
+@mcp.tool()
+def detect_metric_spike(query: str, duration: str = "1h", spike_multiplier: float = 2.0) -> str:
+    """
+    Detect sudden spikes in any metric by comparing current value to historical average.
+    Args:
+        query: PromQL query for the metric to analyze
+        duration: Historical period to analyze (e.g., '1h', '6h', '1d')
+        spike_multiplier: How many times higher than average to trigger alert (default: 2.0)
+    Returns: Detected spikes with Z-scores and deviation from normal
+    """
+    try:
+        with httpx.Client(timeout=TIMEOUT * 2) as client:
+            params = {
+                "query": query,
+                "duration": duration,
+                "spike_multiplier": spike_multiplier
+            }
+            response = client.get(f"{API_URL}/detection/spike", params=params)
+            response.raise_for_status()
+            return str(response.json())
+    except httpx.HTTPError as e:
+        return f"Error detecting metric spike: {str(e)}"
+
 def main():
     # IMPORTANT: do not print to stdout in stdio servers
     mcp.run(transport="stdio")

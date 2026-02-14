@@ -1,4 +1,3 @@
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -38,6 +37,71 @@ data:
       - job_name: "kube-state-metrics"
         static_configs:
           - targets: ["kube-state-metrics:8080"]
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: intelligent-sre
+data:
+  alert_rules.yml: |
+    groups:
+      - name: intelligent_sre_alerts
+        interval: 30s
+        rules:
+          # High Severity Alerts
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+              category: pod_health
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+              description: "Container {{ $labels.container }} has restarted {{ $value }} times in 15 minutes"
+
+          - alert: PodNotReady
+            expr: kube_pod_status_ready{condition="false"} == 1
+            for: 10m
+            labels:
+              severity: warning
+              category: pod_health
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+              description: "Pod has been in not-ready state for more than 10 minutes"
+
+          - alert: HighCPUUsage
+            expr: sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (namespace, pod) * 100 > 80
+            for: 10m
+            labels:
+              severity: warning
+              category: resource
+            annotations:
+              summary: "High CPU usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+              description: "Pod CPU usage is {{ $value | humanize }}%"
+
+          - alert: HighMemoryUsage
+            expr: |
+              (sum(container_memory_working_set_bytes{container!=""}) by (namespace, pod) 
+              / sum(container_spec_memory_limit_bytes{container!=""}) by (namespace, pod)) * 100 > 85
+            for: 10m
+            labels:
+              severity: warning
+              category: resource
+            annotations:
+              summary: "High memory usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+              description: "Pod memory usage is {{ $value | humanize }}% of limit"
+
+          - alert: ServiceDown
+            expr: up{job!="kubernetes-pods"} == 0
+            for: 5m
+            labels:
+              severity: critical
+              category: availability
+            annotations:
+              summary: "Service {{ $labels.job }} is down"
+              description: "Target {{ $labels.instance }} has been down for more than 5 minutes"
 
   alert_rules.yml: |
     groups:

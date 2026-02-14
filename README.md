@@ -11,26 +11,30 @@ A Kubernetes-native SRE monitoring platform that combines observability, metrics
 
 ## What This Project Does
 
-This project provides a complete monitoring and self-healing platform deployed on Kubernetes that:
+This project provides a complete monitoring and intelligent detection platform deployed on Kubernetes that:
 - **Collects metrics** via Prometheus, Node Exporter, kube-state-metrics, and OpenTelemetry Collector
 - **Visualizes data** through Grafana dashboards
 - **Exposes monitoring data** to Claude Desktop via a FastAPI-based MCP server
+- **Detects anomalies** using statistical analysis (Z-scores, thresholds, spike detection)
+- **Recognizes patterns** like recurring failures, cyclic spikes, resource exhaustion
+- **Correlates signals** between metrics, events, and alerts for root cause analysis
 - **Provides Kubernetes diagnostics** - Pod status, logs, events, node health
+- **Calculates health scores** (0-100) with actionable recommendations
 - **Enables natural language queries** like:
   - "Is my system healthy?"
-  - "Which pods are failing?"
-  - "Show me logs from the crashed container"
-  - "What's the CPU usage right now?"
-  - "Describe the grafana pod in detail"
+  - "Detect anomalies in the intelligent-sre namespace"
+  - "What patterns do you see in pod failures?"
+  - "Show me correlations between restarts and events"
+  - "Run comprehensive analysis on my cluster"
 
-Claude doesn't guess—it queries real metrics and live Kubernetes state from your cluster.
+Claude doesn't guess—it queries real metrics, detects anomalies, and correlates signals from your cluster.
 
 ---
 
 ## Architecture
 
 ```text
-Claude Desktop (11 MCP Tools)
+Claude Desktop (17 MCP Tools)
   |
   | MCP over HTTP (stdio wrapper)
   v
@@ -39,6 +43,12 @@ intelligent-sre-mcp API (FastAPI in K8s)
   +-- Prometheus API --> PromQL queries for metrics
   |
   +-- Kubernetes API --> Pod/Node/Deployment diagnostics
+  |
+  +-- Intelligent Detection:
+       • Anomaly Detection (CPU, memory, restarts, spikes)
+       • Pattern Recognition (recurring failures, trends)
+       • Correlation Engine (metrics ↔ events ↔ alerts)
+       • Health Score Calculator (0-100 with recommendations)
        |
        v
 Prometheus (Kubernetes) <-- Grafana visualizes
@@ -47,13 +57,14 @@ Prometheus (Kubernetes) <-- Grafana visualizes
   +-- scrapes --> Node Exporter (system metrics)
   +-- scrapes --> OpenTelemetry Collector (traces/metrics)
   +-- scrapes --> Demo Metrics (sample data)
+  +-- fires --> 20+ Alert Rules (pod health, resources, anomalies)
 ```
 
 ---
 
 ## Features
 
-### 11 MCP Tools Available to Claude
+### 17 MCP Tools Available to Claude
 
 **Prometheus Metrics (3 tools):**
 1. `prom_query` - Execute PromQL queries (e.g., `up`, `cpu_usage`, custom metrics)
@@ -69,6 +80,41 @@ Prometheus (Kubernetes) <-- Grafana visualizes
 9. `k8s_get_deployment` - Deployment replica status and rollout state
 10. `k8s_get_events` - Recent Kubernetes events filtered by namespace or resource
 11. `k8s_watch_events` - (Future) Real-time event streaming
+
+**Intelligent Detection (6 tools):**
+12. `detect_anomalies` - Statistical anomaly detection (Z-scores, thresholds, spike analysis)
+13. `get_health_score` - Calculate system health score (0-100) with recommendations
+14. `detect_patterns` - Recognize recurring failures, cyclic spikes, resource exhaustion
+15. `detect_correlations` - Correlate metrics with K8s events for root cause analysis
+16. `comprehensive_analysis` - Full system analysis (health + anomalies + patterns + correlations)
+17. `detect_metric_spike` - Custom metric spike detection with historical comparison
+
+### Key Capabilities
+
+✅ **Anomaly Detection**
+- CPU/memory threshold violations
+- Pod restart anomalies
+- Pending pod detection
+- Metric spike detection with Z-score analysis
+
+✅ **Pattern Recognition**
+- Recurring pod failures (CrashLoopBackOff)
+- Cyclic CPU/memory spikes
+- Resource exhaustion trends (memory leaks)
+- Cascading failures across services
+- Deployment rollout issues
+
+✅ **Correlation Analysis**
+- Pod restarts ↔ Kubernetes events
+- CPU spikes ↔ Deployment activities
+- Memory pressure ↔ OOMKill events
+- Multi-pod failures ↔ Systemic issues
+
+✅ **Intelligent Alerting**
+- 20+ Prometheus alert rules
+- Categories: pod_health, resource, node_health, deployment, anomaly, availability
+- Severity levels: critical, warning, info
+- Actionable recommendations in annotations
 
 ---
 
@@ -193,17 +239,27 @@ Open Claude Desktop and try these prompts:
 - "What's the status of all nodes?"
 - "Show me recent Kubernetes events"
 
-**Intelligent Questions:**
+**Intelligent Detection:**
+- "Detect anomalies in my cluster"
+- "What's the health score for intelligent-sre namespace?"
+- "Detect patterns in pod failures"
+- "Show me correlations between restarts and events"
+- "Run comprehensive analysis on my system"
+- "Detect spikes in CPU usage over the last 6 hours"
+
+**Natural Language Questions:**
 - "Is my system healthy?"
-- "Are there any performance issues?"
-- "Which services should I be concerned about?"
+- "What issues should I be concerned about?"
+- "Why is the grafana pod restarting?"
+- "Are there any memory leaks?"
+- "Show me cascading failures"
 
 ---
 
 ## Components
 
 ### Monitoring Stack (Kubernetes)
-- **Prometheus** - Metrics collection and storage (scraping 5 targets)
+- **Prometheus** - Metrics collection and storage (scraping 5 targets, 20+ alert rules)
 - **Grafana** - Visualization and dashboards
 - **kube-state-metrics** - Kubernetes object state metrics (pods, deployments, nodes)
 - **Node Exporter** - System metrics collection
@@ -212,10 +268,13 @@ Open Claude Desktop and try these prompts:
 - **AlertManager** - Alert routing and notifications
 
 ### Python Application
-- **FastAPI Server** (`api_server.py`) - HTTP API with 7 Kubernetes diagnostic endpoints
-- **MCP Client** (`api_client.py`) - Claude Desktop integration wrapper (11 MCP tools)
+- **FastAPI Server** (`api_server.py`) - HTTP API with 13 endpoints (7 K8s + 6 detection)
+- **MCP Client** (`api_client.py`) - Claude Desktop integration wrapper (17 MCP tools)
 - **Kubernetes Tools** (`tools/k8s_tools.py`) - Pod, node, deployment, event diagnostics
 - **Prometheus Tools** (`tools/metrics.py`) - PromQL query execution
+- **Anomaly Detection** (`tools/anomaly_detection.py`) - Statistical analysis, spike detection, health scoring
+- **Pattern Recognition** (`tools/pattern_recognition.py`) - Recurring failures, cyclic patterns, resource trends
+- **Correlation Engine** (`tools/correlation.py`) - Multi-signal correlation for root cause analysis
 
 ---
 
@@ -231,6 +290,7 @@ intelligent-sre-mcp/
 │   ├── intelligent-sre-mcp.yaml  # FastAPI application
 │   ├── rbac.yaml                 # ServiceAccount + RBAC for K8s API access
 │   ├── kube-state-metrics.yaml   # K8s object state metrics
+│   ├── alert_rules.yaml          # 20+ enhanced Prometheus alert rules
 │   ├── alertmanager.yaml         # AlertManager deployment
 │   ├── otel-collector.yaml       # OpenTelemetry Collector
 │   ├── node-exporter.yaml        # Node Exporter DaemonSet
@@ -238,11 +298,14 @@ intelligent-sre-mcp/
 │   └── demo-metrics.yaml         # Sample metrics generator
 ├── src/intelligent_sre_mcp/      # Python application
 │   ├── server.py                 # Original MCP stdio server
-│   ├── api_server.py             # FastAPI HTTP server (7 K8s endpoints)
-│   ├── api_client.py             # MCP client for Claude (11 tools)
+│   ├── api_server.py             # FastAPI HTTP server (13 endpoints)
+│   ├── api_client.py             # MCP client for Claude (17 tools)
 │   └── tools/
 │       ├── metrics.py            # Prometheus query tools
-│       └── k8s_tools.py          # Kubernetes diagnostic tools (NEW)
+│       ├── k8s_tools.py          # Kubernetes diagnostic tools
+│       ├── anomaly_detection.py  # Anomaly detection engine
+│       ├── pattern_recognition.py # Pattern recognition engine
+│       └── correlation.py        # Correlation analysis engine
 ├── Dockerfile                    # Container image for API
 ├── setup.sh                      # One-command setup script
 ├── cleanup.sh                    # One-command cleanup script

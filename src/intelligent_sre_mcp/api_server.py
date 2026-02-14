@@ -3,6 +3,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+from datetime import datetime
 import uvicorn
 
 # OpenTelemetry imports
@@ -20,6 +21,9 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
 # Import Kubernetes tools
 from intelligent_sre_mcp.tools.k8s_tools import KubernetesTools
+from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
+from intelligent_sre_mcp.tools.pattern_recognition import PatternRecognizer
+from intelligent_sre_mcp.tools.correlation import CorrelationEngine
 
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
@@ -31,6 +35,11 @@ app = FastAPI(title="Intelligent SRE MCP API", version="0.1.0")
 
 # Initialize Kubernetes tools
 k8s_tools = KubernetesTools()
+
+# Initialize Phase 2: Intelligent Detection tools
+anomaly_detector = AnomalyDetector(PROM_URL)
+pattern_recognizer = PatternRecognizer(PROM_URL)
+correlation_engine = CorrelationEngine(PROM_URL)
 
 # OTel configuration
 def configure_otel():
@@ -184,6 +193,91 @@ def get_k8s_events(
     Query params: namespace, resource_type, resource_name (all optional)
     """
     return k8s_tools.get_events(namespace, resource_type, resource_name)
+
+# ============================================================
+# Phase 2: Intelligent Detection Endpoints
+# ============================================================
+
+@app.get("/detection/anomalies")
+def detect_anomalies(namespace: Optional[str] = None):
+    """
+    Detect anomalies in CPU, memory, pod restarts, and pending pods.
+    Query params: namespace (optional)
+    """
+    return anomaly_detector.detect_all_anomalies(namespace)
+
+@app.get("/detection/health-score")
+def get_health_score(namespace: Optional[str] = None):
+    """
+    Calculate overall health score (0-100) based on detected anomalies.
+    Query params: namespace (optional)
+    """
+    return anomaly_detector.get_health_score(namespace)
+
+@app.get("/detection/patterns")
+def detect_patterns(namespace: Optional[str] = None):
+    """
+    Detect patterns such as recurring failures, cyclic spikes, resource exhaustion.
+    Query params: namespace (optional)
+    """
+    return pattern_recognizer.analyze_all_patterns(namespace)
+
+@app.get("/detection/correlations")
+def detect_correlations(namespace: Optional[str] = None):
+    """
+    Correlate metrics, events, and anomalies to identify root causes.
+    Query params: namespace (optional)
+    """
+    return correlation_engine.analyze_all_correlations(namespace)
+
+@app.get("/detection/spike")
+def detect_metric_spike(
+    query: str,
+    duration: str = "1h",
+    spike_multiplier: float = 2.0
+):
+    """
+    Detect sudden spikes in any metric.
+    Query params: query (PromQL), duration, spike_multiplier
+    """
+    anomalies = anomaly_detector.detect_metric_spikes(query, duration, spike_multiplier)
+    return {
+        "status": "success",
+        "anomalies": [
+            {
+                "metric": a.metric_name,
+                "current_value": a.current_value,
+                "expected_range": a.expected_range,
+                "deviation": a.deviation,
+                "level": a.level.value,
+                "timestamp": a.timestamp,
+                "description": a.description,
+                "labels": a.labels or {}
+            }
+            for a in anomalies
+        ]
+    }
+
+@app.get("/detection/comprehensive")
+def comprehensive_analysis(namespace: Optional[str] = None):
+    """
+    Run comprehensive analysis: anomalies + patterns + correlations.
+    Query params: namespace (optional)
+    """
+    health = anomaly_detector.get_health_score(namespace)
+    anomalies = anomaly_detector.detect_all_anomalies(namespace)
+    patterns = pattern_recognizer.analyze_all_patterns(namespace)
+    correlations = correlation_engine.analyze_all_correlations(namespace)
+    
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "namespace": namespace or "all",
+        "health_score": health,
+        "anomalies": anomalies,
+        "patterns": patterns,
+        "correlations": correlations,
+        "overall_status": health["status"]
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)

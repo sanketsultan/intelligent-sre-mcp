@@ -49,7 +49,7 @@ spec:
             - name: prometheus-config
               mountPath: /etc/prometheus/prometheus.yml
               subPath: prometheus.yml
-            - name: prometheus-config
+            - name: prometheus-rules
               mountPath: /etc/prometheus/alert_rules.yml
               subPath: alert_rules.yml
             - name: prometheus-storage
@@ -65,5 +65,8 @@ spec:
         - name: prometheus-config
           configMap:
             name: prometheus-config
+        - name: prometheus-rules
+          configMap:
+            name: prometheus-rules
         - name: prometheus-storage
           emptyDir: {}

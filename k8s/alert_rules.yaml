@@ -1,0 +1,237 @@
+groups:
+  - name: intelligent_sre_alerts
+    interval: 30s
+    rules:
+      # ============================================
+      # High Severity Alerts
+      # ============================================
+      
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: pod_health
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+          description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes"
+          recommendation: "Check pod logs with: kubectl logs -n {{ $labels.namespace }} {{ $labels.pod }} -c {{ $labels.container }}"
+      
+      - alert: PodNotReady
+        expr: kube_pod_status_ready{condition="false"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          category: pod_health
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in not-ready state for more than 10 minutes"
+          recommendation: "Describe pod for details: kubectl describe pod -n {{ $labels.namespace }} {{ $labels.pod }}"
+      
+      - alert: PodPending
+        expr: kube_pod_status_phase{phase="Pending"} == 1
+        for: 15m
+        labels:
+          severity: warning
+          category: pod_health
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Pending"
+          description: "Pod has been in Pending state for more than 15 minutes"
+          recommendation: "Check events and scheduling: kubectl describe pod -n {{ $labels.namespace }} {{ $labels.pod }}"
+      
+      # ============================================
+      # Resource Alerts
+      # ============================================
+      
+      - alert: HighCPUUsage
+        expr: sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (namespace, pod) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High CPU usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} CPU usage is {{ $value | humanize }}%"
+          recommendation: "Consider scaling the deployment or investigating CPU-intensive operations"
+      
+      - alert: CriticalCPUUsage
+        expr: sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (namespace, pod) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Critical CPU usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} CPU usage is {{ $value | humanize }}% (critical threshold exceeded)"
+          recommendation: "Immediate action required - scale up or investigate runaway processes"
+      
+      - alert: HighMemoryUsage
+        expr: |
+          (sum(container_memory_working_set_bytes{container!=""}) by (namespace, pod) 
+          / sum(container_spec_memory_limit_bytes{container!=""}) by (namespace, pod)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "High memory usage in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} memory usage is {{ $value | humanize }}% of limit"
+          recommendation: "Monitor for memory leaks, consider increasing memory limits"
+      
+      - alert: MemoryNearLimit
+        expr: |
+          (sum(container_memory_working_set_bytes{container!=""}) by (namespace, pod) 
+          / sum(container_spec_memory_limit_bytes{container!=""}) by (namespace, pod)) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: resource
+        annotations:
+          summary: "Memory near limit in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is using {{ $value | humanize }}% of memory limit (OOMKill imminent)"
+          recommendation: "Urgent - increase memory limits or scale horizontally to prevent OOMKill"
+      
+      # ============================================
+      # Node Alerts
+      # ============================================
+      
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: node_health
+        annotations:
+          summary: "Node {{ $labels.node }} is not ready"
+          description: "Node {{ $labels.node }} has been in not-ready state for more than 5 minutes"
+          recommendation: "Check node status: kubectl describe node {{ $labels.node }}"
+      
+      - alert: NodeHighCPU
+        expr: (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: node_health
+        annotations:
+          summary: "High CPU on node {{ $labels.instance }}"
+          description: "Node {{ $labels.instance }} CPU usage is {{ $value | humanize }}%"
+          recommendation: "Consider scaling cluster or redistributing workloads"
+      
+      - alert: NodeHighMemory
+        expr: ((node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          category: node_health
+        annotations:
+          summary: "High memory on node {{ $labels.instance }}"
+          description: "Node {{ $labels.instance }} memory usage is {{ $value | humanize }}%"
+          recommendation: "Monitor memory pressure, consider adding nodes or evicting pods"
+      
+      # ============================================
+      # Deployment Alerts
+      # ============================================
+      
+      - alert: DeploymentReplicasMismatch
+        expr: kube_deployment_status_replicas_available != kube_deployment_spec_replicas
+        for: 15m
+        labels:
+          severity: warning
+          category: deployment
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
+          description: "Deployment has {{ $value }} available replicas, but spec requires different count"
+          recommendation: "Check deployment status: kubectl rollout status deployment/{{ $labels.deployment }} -n {{ $labels.namespace }}"
+      
+      - alert: DeploymentGenerationMismatch
+        expr: kube_deployment_status_observed_generation != kube_deployment_metadata_generation
+        for: 15m
+        labels:
+          severity: warning
+          category: deployment
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} rollout stuck"
+          description: "Deployment generation mismatch - rollout may be stuck or failing"
+          recommendation: "Check rollout status and consider rollback: kubectl rollout undo deployment/{{ $labels.deployment }} -n {{ $labels.namespace }}"
+      
+      # ============================================
+      # Anomaly Detection Alerts
+      # ============================================
+      
+      - alert: SuddenCPUSpike
+        expr: |
+          (sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (namespace, pod) 
+          / (sum(rate(container_cpu_usage_seconds_total{container!=""}[1h] offset 1h)) by (namespace, pod) + 0.01)) > 3
+        for: 5m
+        labels:
+          severity: warning
+          category: anomaly
+        annotations:
+          summary: "Sudden CPU spike in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "CPU usage is 3x higher than historical average"
+          recommendation: "Investigate recent changes or unexpected workload increases"
+      
+      - alert: RecurringRestarts
+        expr: increase(kube_pod_container_status_restarts_total[6h]) >= 5
+        for: 5m
+        labels:
+          severity: warning
+          category: anomaly
+        annotations:
+          summary: "Recurring restarts in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Container {{ $labels.container }} has restarted {{ $value }} times in 6 hours"
+          recommendation: "Pattern detected - investigate root cause to prevent future restarts"
+      
+      # ============================================
+      # Service Availability Alerts
+      # ============================================
+      
+      - alert: ServiceDown
+        expr: up{job!="kubernetes-pods"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes"
+          recommendation: "Check service health and pod status"
+      
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) by (namespace, pod) 
+          / sum(rate(http_requests_total[5m])) by (namespace, pod) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "High error rate in {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          recommendation: "Check application logs for errors and exceptions"
+      
+      # ============================================
+      # Storage Alerts
+      # ============================================
+      
+      - alert: PersistentVolumeClaimPending
+        expr: kube_persistentvolumeclaim_status_phase{phase="Pending"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} pending"
+          description: "PersistentVolumeClaim has been pending for more than 10 minutes"
+          recommendation: "Check storage class and volume availability: kubectl describe pvc -n {{ $labels.namespace }} {{ $labels.persistentvolumeclaim }}"
+      
+      - alert: HighDiskUsage
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 < 15
+        for: 10m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }}"
+          description: "Only {{ $value | humanize }}% disk space available"
+          recommendation: "Clean up logs, old images, or expand storage capacity"
