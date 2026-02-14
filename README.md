@@ -1,136 +1,27 @@
 # Intelligent SRE MCP
 
-A Kubernetes-native SRE monitoring platform that combines observability, metrics, and AI to provide intelligent infrastructure insights through Claude Desktop.
+> **Talk to your Kubernetes cluster through Claude Desktop.**  
+> Ask questions in plain English and get real-time insights from Prometheus, Grafana, and K8s.
 
-> An intelligent SRE copilot that lets you ask questions about your infrastructure in plain English and get answers directly from Prometheus, Grafana, and other monitoring tools using Claude Desktop via the Model Context Protocol (MCP).
+An intelligent SRE copilot that connects Claude Desktop to your entire monitoring stack via the Model Context Protocol (MCP).
 
-**Think of it as:**
-> "Claude, but connected to your entire monitoring stack running in Kubernetes."
+## What It Does
 
----
+- 🔍 **Detects anomalies** - CPU spikes, memory leaks, crash loops
+- 📊 **Analyzes patterns** - Recurring failures, resource exhaustion, cascading issues
+- 🔗 **Correlates signals** - Links metrics, events, and alerts for root cause analysis
+- 💯 **Calculates health scores** - 0-100 system health with recommendations
+- 🤖 **Natural language queries** - "Is my system healthy?", "Why is this pod failing?"
 
-## What This Project Does
-
-This project provides a complete monitoring and intelligent detection platform deployed on Kubernetes that:
-- **Collects metrics** via Prometheus, Node Exporter, kube-state-metrics, and OpenTelemetry Collector
-- **Visualizes data** through Grafana dashboards
-- **Exposes monitoring data** to Claude Desktop via a FastAPI-based MCP server
-- **Detects anomalies** using statistical analysis (Z-scores, thresholds, spike detection)
-- **Recognizes patterns** like recurring failures, cyclic spikes, resource exhaustion
-- **Correlates signals** between metrics, events, and alerts for root cause analysis
-- **Provides Kubernetes diagnostics** - Pod status, logs, events, node health
-- **Calculates health scores** (0-100) with actionable recommendations
-- **Enables natural language queries** like:
-  - "Is my system healthy?"
-  - "Detect anomalies in the intelligent-sre namespace"
-  - "What patterns do you see in pod failures?"
-  - "Show me correlations between restarts and events"
-  - "Run comprehensive analysis on my cluster"
-
-Claude doesn't guess—it queries real metrics, detects anomalies, and correlates signals from your cluster.
-
----
-
-## Architecture
-
-```text
-Claude Desktop (17 MCP Tools)
-  |
-  | MCP over HTTP (stdio wrapper)
-  v
-intelligent-sre-mcp API (FastAPI in K8s)
-  |
-  +-- Prometheus API --> PromQL queries for metrics
-  |
-  +-- Kubernetes API --> Pod/Node/Deployment diagnostics
-  |
-  +-- Intelligent Detection:
-       • Anomaly Detection (CPU, memory, restarts, spikes)
-       • Pattern Recognition (recurring failures, trends)
-       • Correlation Engine (metrics ↔ events ↔ alerts)
-       • Health Score Calculator (0-100 with recommendations)
-       |
-       v
-Prometheus (Kubernetes) <-- Grafana visualizes
-  |
-  +-- scrapes --> kube-state-metrics (K8s object metrics)
-  +-- scrapes --> Node Exporter (system metrics)
-  +-- scrapes --> OpenTelemetry Collector (traces/metrics)
-  +-- scrapes --> Demo Metrics (sample data)
-  +-- fires --> 20+ Alert Rules (pod health, resources, anomalies)
-```
-
----
-
-## Features
-
-### 17 MCP Tools Available to Claude
-
-**Prometheus Metrics (3 tools):**
-1. `prom_query` - Execute PromQL queries (e.g., `up`, `cpu_usage`, custom metrics)
-2. `prom_query_range` - Time-series range queries for trending analysis
-3. `prom_targets` - List all Prometheus scrape targets and their health status
-
-**Kubernetes Diagnostics (8 tools):**
-4. `k8s_get_all_pods` - List all pods across namespaces with status, restarts, age
-5. `k8s_get_failing_pods` - Identify pods with errors, CrashLoopBackOff, restarts
-6. `k8s_get_pod_logs` - Retrieve container logs from any pod (supports tail lines)
-7. `k8s_describe_pod` - Detailed pod information (events, containers, volumes, status)
-8. `k8s_get_nodes` - Node health, CPU/memory capacity and allocation
-9. `k8s_get_deployment` - Deployment replica status and rollout state
-10. `k8s_get_events` - Recent Kubernetes events filtered by namespace or resource
-11. `k8s_watch_events` - (Future) Real-time event streaming
-
-**Intelligent Detection (6 tools):**
-12. `detect_anomalies` - Statistical anomaly detection (Z-scores, thresholds, spike analysis)
-13. `get_health_score` - Calculate system health score (0-100) with recommendations
-14. `detect_patterns` - Recognize recurring failures, cyclic spikes, resource exhaustion
-15. `detect_correlations` - Correlate metrics with K8s events for root cause analysis
-16. `comprehensive_analysis` - Full system analysis (health + anomalies + patterns + correlations)
-17. `detect_metric_spike` - Custom metric spike detection with historical comparison
-
-### Key Capabilities
-
-✅ **Anomaly Detection**
-- CPU/memory threshold violations
-- Pod restart anomalies
-- Pending pod detection
-- Metric spike detection with Z-score analysis
-
-✅ **Pattern Recognition**
-- Recurring pod failures (CrashLoopBackOff)
-- Cyclic CPU/memory spikes
-- Resource exhaustion trends (memory leaks)
-- Cascading failures across services
-- Deployment rollout issues
-
-✅ **Correlation Analysis**
-- Pod restarts ↔ Kubernetes events
-- CPU spikes ↔ Deployment activities
-- Memory pressure ↔ OOMKill events
-- Multi-pod failures ↔ Systemic issues
-
-✅ **Intelligent Alerting**
-- 20+ Prometheus alert rules
-- Categories: pod_health, resource, node_health, deployment, anomaly, availability
-- Severity levels: critical, warning, info
-- Actionable recommendations in annotations
-
----
-
-## Prerequisites
-
-- **Kubernetes cluster** (Docker Desktop, Minikube, or any K8s cluster)
-- **kubectl** configured and connected to your cluster
-- **Docker** for building the Python API container
-- **Python 3.10+** for local development
-- **Claude Desktop** app
-
----
+**Example queries:**
+- "Detect anomalies in my cluster"
+- "What patterns do you see in pod failures?"
+- "Show me correlations between restarts and events"
+- "Run comprehensive analysis"
 
 ## Quick Start
 
-### One-Command Setup
+**One command to set up everything:**
 
 ```bash
 git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
@@ -138,267 +29,80 @@ cd intelligent-sre-mcp
 ./setup.sh
 ```
 
-This single script will:
-- ✓ Build the Docker image
-- ✓ Deploy all services to Kubernetes
-- ✓ Wait for pods to be ready
-- ✓ Verify all endpoints
-- ✓ Set up Python environment
-- ✓ Configure Claude Desktop
+This will:
+- ✓ Build and deploy to Kubernetes
+- ✓ Start Prometheus, Grafana, and monitoring stack
+- ✓ Configure Claude Desktop integration
+- ✓ Verify all services are running
 
-### Manual Setup
-
-If you prefer step-by-step deployment:
-
-#### 1. Clone the repository
-
+**Then restart Claude Desktop:**
 ```bash
-git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
-cd intelligent-sre-mcp
+killall Claude && open -a Claude
 ```
 
-#### 2. Deploy to Kubernetes
-
-```bash
-# Build Docker image
-docker build -t intelligent-sre-mcp:latest .
-
-# Deploy the entire monitoring stack
-kubectl apply -f k8s/
-
-# Verify all pods are running
-kubectl get pods -n intelligent-sre
-
-# Check services
-kubectl get svc -n intelligent-sre
+**Test it:**
+```
+Ask Claude: "Show me all pods in the intelligent-sre namespace"
 ```
 
-**Services exposed:**
+---
+
+## 17 MCP Tools for Claude
+
+Claude has access to these tools to query your infrastructure:
+
+**Prometheus (3):** `prom_query`, `prom_query_range`, `prom_targets`  
+**Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`, `k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`  
+**Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`
+
+---
+
+## Services
+
+Access these directly or through Claude:
+
 - **Prometheus**: http://localhost:30090
 - **Grafana**: http://localhost:30300 (admin/admin)
-- **Intelligent SRE API**: http://localhost:30080
+- **API**: http://localhost:30080
 - **AlertManager**: http://localhost:30093
 - **Jaeger**: http://localhost:30686
 
-#### 3. Verify the deployment
-
-```bash
-# Test Prometheus query
-curl "http://localhost:30090/api/v1/query?query=up"
-
-# Test API health
-curl http://localhost:30080/health
-
-# Check Grafana health
-curl http://localhost:30300/api/health
-```
-
-#### 4. Configure Claude Desktop
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "intelligent-sre-mcp": {
-      "command": "/Users/YOUR_USERNAME/Desktop/intelligent-sre-mcp/run_mcp_api.sh",
-      "args": [],
-      "env": {
-        "API_URL": "http://localhost:30080"
-      }
-    }
-  }
-}
-```
-
-#### 5. Restart Claude Desktop
-
-```bash
-# Quit Claude completely
-killall Claude
-
-# Reopen Claude Desktop
-open -a Claude
-```
-
-#### 6. Test in Claude
-
-Open Claude Desktop and try these prompts:
-
-**Prometheus Metrics:**
-- "Run prom_query with query 'up'"
-- "What's the current CPU usage?"
-- "Show me memory availability"
-- "How many targets are down?"
-
-**Kubernetes Diagnostics:**
-- "Show me all pods in the intelligent-sre namespace"
-- "Are there any failing pods?"
-- "Get logs from the prometheus pod in intelligent-sre namespace"
-- "Describe the grafana pod in detail"
-- "What's the status of all nodes?"
-- "Show me recent Kubernetes events"
-
-**Intelligent Detection:**
-- "Detect anomalies in my cluster"
-- "What's the health score for intelligent-sre namespace?"
-- "Detect patterns in pod failures"
-- "Show me correlations between restarts and events"
-- "Run comprehensive analysis on my system"
-- "Detect spikes in CPU usage over the last 6 hours"
-
-**Natural Language Questions:**
-- "Is my system healthy?"
-- "What issues should I be concerned about?"
-- "Why is the grafana pod restarting?"
-- "Are there any memory leaks?"
-- "Show me cascading failures"
-
 ---
 
-## Components
+## Testing
 
-### Monitoring Stack (Kubernetes)
-- **Prometheus** - Metrics collection and storage (scraping 5 targets, 20+ alert rules)
-- **Grafana** - Visualization and dashboards
-- **kube-state-metrics** - Kubernetes object state metrics (pods, deployments, nodes)
-- **Node Exporter** - System metrics collection
-- **OpenTelemetry Collector** - Traces and metrics pipeline
-- **Jaeger** - Distributed tracing UI
-- **AlertManager** - Alert routing and notifications
-
-### Python Application
-- **FastAPI Server** (`api_server.py`) - HTTP API with 13 endpoints (7 K8s + 6 detection)
-- **MCP Client** (`api_client.py`) - Claude Desktop integration wrapper (17 MCP tools)
-- **Kubernetes Tools** (`tools/k8s_tools.py`) - Pod, node, deployment, event diagnostics
-- **Prometheus Tools** (`tools/metrics.py`) - PromQL query execution
-- **Anomaly Detection** (`tools/anomaly_detection.py`) - Statistical analysis, spike detection, health scoring
-- **Pattern Recognition** (`tools/pattern_recognition.py`) - Recurring failures, cyclic patterns, resource trends
-- **Correlation Engine** (`tools/correlation.py`) - Multi-signal correlation for root cause analysis
-
----
-
-## Project Structure
-
-```
-intelligent-sre-mcp/
-├── k8s/                          # Kubernetes manifests
-│   ├── namespace.yaml            # intelligent-sre namespace
-│   ├── configmaps.yaml           # Prometheus, AlertManager, OTEL configs
-│   ├── prometheus.yaml           # Prometheus deployment
-│   ├── grafana.yaml              # Grafana with datasources
-│   ├── intelligent-sre-mcp.yaml  # FastAPI application
-│   ├── rbac.yaml                 # ServiceAccount + RBAC for K8s API access
-│   ├── kube-state-metrics.yaml   # K8s object state metrics
-│   ├── alert_rules.yaml          # 20+ enhanced Prometheus alert rules
-│   ├── alertmanager.yaml         # AlertManager deployment
-│   ├── otel-collector.yaml       # OpenTelemetry Collector
-│   ├── node-exporter.yaml        # Node Exporter DaemonSet
-│   ├── jaeger.yaml               # Jaeger tracing
-│   └── demo-metrics.yaml         # Sample metrics generator
-├── src/intelligent_sre_mcp/      # Python application
-│   ├── server.py                 # Original MCP stdio server
-│   ├── api_server.py             # FastAPI HTTP server (13 endpoints)
-│   ├── api_client.py             # MCP client for Claude (17 tools)
-│   └── tools/
-│       ├── metrics.py            # Prometheus query tools
-│       ├── k8s_tools.py          # Kubernetes diagnostic tools
-│       ├── anomaly_detection.py  # Anomaly detection engine
-│       ├── pattern_recognition.py # Pattern recognition engine
-│       └── correlation.py        # Correlation analysis engine
-├── Dockerfile                    # Container image for API
-├── setup.sh                      # One-command setup script
-├── cleanup.sh                    # One-command cleanup script
-├── setup_claude.sh               # Claude Desktop configuration
-└── run_mcp_api.sh               # Wrapper for Claude integration
-```
-
----
-
-## Development
-
-### Local Development
+**Quick test everything:**
 ```bash
-# Set up Python environment
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Run the API server locally
-python src/intelligent_sre_mcp/api_server.py
+./run_tests.sh
 ```
 
-### Building Docker Image
+**Recommended - End-to-End Test:**
 ```bash
-docker build -t intelligent-sre-mcp:latest .
+./tests/test-e2e-with-claude.sh
 ```
+Deploys test infrastructure, detects issues, lets you test with Claude, auto-cleans up. Perfect for demos!
 
-### Accessing Services
-- **Prometheus**: http://localhost:30090 (metrics database, PromQL queries)
-- **Grafana**: http://localhost:30300 (dashboards, login: admin/admin)
-- **API**: http://localhost:30080 (FastAPI endpoints, health check at `/health`)
-- **Jaeger**: http://localhost:30686 (distributed tracing UI)
-- **kube-state-metrics**: http://localhost:30081 (K8s object metrics)
-
-### Verifying Deployment
-
-```bash
-# Check all pods are running
-kubectl get pods -n intelligent-sre
-
-# Check Prometheus targets (should show 5 healthy targets)
-curl http://localhost:30090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health}'
-
-# Test API health
-curl http://localhost:30080/health
-
-# Test Claude integration (requires Claude Desktop configured)
-# In Claude Desktop, ask: "Show me all pods in the intelligent-sre namespace"
-```
+**See [tests/README.md](tests/README.md) for more options.**
 
 ---
 
 ## Troubleshooting
 
-### Pod Won't Start
+**API not responding:**
 ```bash
-# Check pod status
 kubectl get pods -n intelligent-sre
-
-# View pod logs
-kubectl logs -n intelligent-sre <pod-name>
-
-# Describe pod for events
-kubectl describe pod -n intelligent-sre <pod-name>
+curl http://localhost:30080/health
 ```
 
-### Claude Can't Connect to API
-1. Verify API is running: `kubectl get pods -n intelligent-sre | grep intelligent-sre-mcp`
-2. Check NodePort service: `kubectl get svc -n intelligent-sre intelligent-sre-mcp-service`
-3. Test API locally: `curl http://localhost:30080/health`
-4. Restart Claude Desktop: `killall Claude && open -a Claude`
-5. Check Claude config path: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-### Prometheus Not Scraping
+**Claude can't connect:**
 ```bash
-# Check Prometheus targets
-curl http://localhost:30090/api/v1/targets
-
-# View Prometheus logs
-kubectl logs -n intelligent-sre deployment/prometheus
-
-# Verify ConfigMap
-kubectl get configmap -n intelligent-sre prometheus-config -o yaml
+killall Claude && open -a Claude
+cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
-### Permission Errors (403 Forbidden)
+**Check logs:**
 ```bash
-# Verify RBAC is deployed
-kubectl get clusterrole intelligent-sre-mcp-role
-kubectl get clusterrolebinding intelligent-sre-mcp-binding
-
-# Check ServiceAccount
-kubectl get serviceaccount -n intelligent-sre intelligent-sre-mcp
+kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50
 ```
 
 ---
@@ -406,12 +110,20 @@ kubectl get serviceaccount -n intelligent-sre intelligent-sre-mcp
 ## Cleanup
 
 ```bash
-# Remove all Kubernetes resources
 ./cleanup.sh
-
-# Or manually
-kubectl delete namespace intelligent-sre
 ```
+
+---
+
+## What's Inside
+
+- **Monitoring Stack**: Prometheus, Grafana, AlertManager, Jaeger, OpenTelemetry
+- **Metrics Collection**: kube-state-metrics, Node Exporter, demo metrics
+- **Python API**: FastAPI server with 17 MCP tools
+- **Detection Engines**: Anomaly detection, pattern recognition, correlation analysis
+- **Test Suite**: Automated tests, interactive scenarios, E2E testing
+
+**See full documentation in project files.**
 
 ---
 

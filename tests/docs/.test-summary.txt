@@ -1,0 +1,33 @@
+INTELLIGENT SRE MCP - TEST SUITE SUMMARY
+=========================================
+
+📁 Test Files:
+  ✓ test_detection.py      - 10 automated tests (Python)
+  ✓ test-scenarios.sh      - 9 interactive scenarios (Bash)
+  ✓ TESTING.md             - Complete testing guide
+  ✓ TESTING_QUICKREF.md    - Quick reference card
+  ✓ README.md              - Test suite overview
+
+🎯 Coverage:
+  ✓ 13 API endpoints
+  ✓ 17 MCP tools
+  ✓ 3 detection engines (anomaly, pattern, correlation)
+  ✓ 20+ Prometheus alert rules
+  ✓ Kubernetes resources (pods, nodes, deployments, events)
+
+🚀 Quick Start:
+  From project root:
+    ./run_tests.sh              (interactive menu)
+    python3 tests/test_detection.py  (automated)
+    ./tests/test-scenarios.sh   (interactive scenarios)
+
+📊 Current Status:
+  Pass Rate: 80% (8/10 automated tests passing)
+  All detection engines: ✓ Working
+  Claude Desktop integration: ✓ Ready
+
+⚡ Quick Commands:
+  cd /Users/sanket/Desktop/intelligent-sre-mcp
+  python3 tests/test_detection.py
+  ./tests/test-scenarios.sh
+  ./run_tests.sh

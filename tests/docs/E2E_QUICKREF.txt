@@ -1,0 +1,127 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  END-TO-END TEST - QUICK REFERENCE                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+🚀 RUN THE TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ./tests/test-e2e-with-claude.sh
+
+  OR from menu:
+  ./tests/test-scenarios.sh  → Select option 11
+
+
+📊 WHAT GETS DEPLOYED (7 pods)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1. cpu-stress-test       → High CPU (2 cores)
+  2. memory-stress-test    → High memory (100MB)
+  3. crash-loop-test       → Crashes every 10s
+  4. image-pull-test       → ImagePullBackOff
+  5. cascade-test-1        → Fails after 5s
+  6. cascade-test-2        → Fails after 10s
+  7. cascade-test-3        → Fails after 15s
+
+
+⏱️ TIMELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Baseline Check    → 30s
+  Deploy Infra      → 1m
+  Wait for Issues   → 2m (countdown)
+  Show Results      → 1m
+  YOUR TESTING      → Take your time!
+  Cleanup           → 30s (automatic)
+
+
+🤖 CLAUDE DESKTOP TEST PROMPTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Basic:
+  • "What is the health score of intelligent-sre?"
+  • "Is my system healthy?"
+  
+  Anomalies:
+  • "Detect all anomalies in intelligent-sre namespace"
+  • "Show me pods with high restart counts"
+  
+  Patterns:
+  • "Show me patterns in pod failures"
+  • "Are there any recurring issues?"
+  
+  Correlations:
+  • "Are there any cascading failures?"
+  • "Show correlations between restarts and events"
+  
+  Comprehensive:
+  • "Run comprehensive analysis"
+  • "Give me a full system report"
+  
+  Troubleshooting:
+  • "Which pods are failing and why?"
+  • "Show me logs from crash-loop-test"
+
+
+✅ EXPECTED DETECTION RESULTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Health Score:      0-50 🔥 (Critical)
+  Total Anomalies:   5-7
+    • CPU:           1-2
+    • Memory:        1-2
+    • Restarts:      1
+    • Pending:       1
+  
+  Patterns:          1-2
+    • Recurring failures
+    • Cascading failures
+  
+  Correlations:      1-2
+    • Restarts ↔ Events
+    • Cascading failures
+
+
+🧹 CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✓ Automatic when you press Enter
+  ✓ Automatic if you Ctrl+C
+  ✓ Guaranteed via EXIT trap
+  
+  Verify cleanup:
+  kubectl get pods -n intelligent-sre -l app=e2e-test
+  # Should show: No resources found
+
+
+📝 AFTER TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Check baseline restored:
+  curl http://localhost:30080/detection/health-score
+  
+  Expected: Health Score 90-100 ✅
+
+
+🐛 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Pods not creating:
+  kubectl get namespace intelligent-sre
+  kubectl auth can-i create pods -n intelligent-sre
+  
+  No anomalies detected:
+  sleep 60  # Wait for metrics
+  
+  Manual cleanup:
+  kubectl delete pods -n intelligent-sre -l app=e2e-test
+  
+  Claude not working:
+  killall Claude && open -a Claude
+
+
+💡 PERFECT FOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✓ Demos to stakeholders
+  ✓ Validating all features
+  ✓ Testing after changes
+  ✓ Learning how detection works
+  ✓ Verifying Claude integration
+
+
+📚 MORE INFO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  tests/E2E_TEST_GUIDE.md  - Complete guide
+  tests/README.md          - Test suite overview
+  tests/TESTING.md         - All test procedures
