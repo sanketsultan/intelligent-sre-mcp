@@ -5,7 +5,7 @@
 > **NEW:** Claude can now **automatically heal** issues with built-in safety controls!  
 > **NEW:** Every action is **auto-correlated** and **audit-logged** to the database.
 
-An intelligent SRE copilot that connects Claude Desktop to your entire monitoring stack via the Model Context Protocol (MCP).
+An intelligent SRE copilot that runs autonomously against your monitoring stack via the Model Context Protocol (MCP), with optional Claude Desktop integration.
 
 ## What It Does
 
