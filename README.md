@@ -2,7 +2,8 @@
 
 > **Talk to your Kubernetes cluster through Claude Desktop.**  
 > Ask questions in plain English and get real-time insights from Prometheus, Grafana, and K8s.  
-> **NEW:** Claude can now **automatically heal** issues with built-in safety controls!
+> **NEW:** Claude can now **automatically heal** issues with built-in safety controls!  
+> **NEW:** Every action is **auto-correlated** and **audit-logged** to the database.
 
 An intelligent SRE copilot that connects Claude Desktop to your entire monitoring stack via the Model Context Protocol (MCP).
 
@@ -80,7 +81,7 @@ docker run --rm -p 30080:8080 sanketsultan/intelligent-sre-mcp:latest
 
 ---
 
-## 29 MCP Tools for Claude
+## MCP Tools for Claude
 
 Claude has access to these tools to query and manage your infrastructure:
 
@@ -88,7 +89,7 @@ Claude has access to these tools to query and manage your infrastructure:
 **Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`, `k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`  
 **Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`  
 **Healing (9):** `restart_pod`, `delete_failed_pods`, `evict_pod_from_node`, `drain_node`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history`
-**Learning (3):** `get_action_stats`, `get_recurring_issues`, `record_action_outcome` 🆕
+**Learning (9):** `get_action_stats`, `get_recurring_issues`, `record_action_outcome`, `record_agent_activity`, `get_agent_activity`, `create_problem`, `update_problem`, `list_problems`, `list_tool_invocations` 🆕
 
 ---
 
@@ -109,6 +110,41 @@ export ACTION_HISTORY_DB=/path/to/intelligent_sre_actions.db
 **Use Postgres for action history (recommended in K8s):**
 ```bash
 export ACTION_HISTORY_DB=postgresql://sre:srepassword@postgres:5432/sre
+```
+
+## Correlation & Audit Logging (Auto)
+
+We now **auto-correlate** every request, tool invocation, and healing action to a single **problem** record for auditability and model improvement.
+
+**What gets captured**
+- **`problems`**: Canonical problem records with `fingerprint`, status, and timestamps.
+- **`tool_invocations`**: Every API/tool call with method, path, query/body, status, duration, and `problem_id`.
+- **`agent_activity`**: High-signal agent intent + inputs + action + outcome with `problem_id`.
+- **`healing_actions`**: All remediation actions with `problem_id`.
+
+**How correlation works**
+- Each request creates or reuses a **problem** based on a stable `fingerprint`.
+- `problem_id` is propagated via request context and attached to all logs automatically.
+- You can override correlation per request with header **`X-Problem-Id`**.
+
+**Why this matters (staff-engineer view)**
+- **Auditability**: One thread of evidence per incident for compliance and RCA.
+- **Model improvement**: High-quality traces enable training signal without noise.
+- **Operational visibility**: See tool usage, success/failure, and outcomes by incident.
+
+**Operational guidance**
+- **Retention**: Add a scheduled job to purge old rows (e.g., 30–90 days).
+- **PII/Secrets**: Keep payload capture minimal; redact sensitive fields upstream.
+- **Performance**: These writes are lightweight; keep Postgres tuned and indexed.
+
+**Quick checks**
+```bash
+kubectl exec -n intelligent-sre postgres-0 -- psql -U sre -d sre -c \
+"SELECT id, title, fingerprint, status FROM problems ORDER BY id DESC LIMIT 20;"
+```
+```bash
+kubectl exec -n intelligent-sre postgres-0 -- psql -U sre -d sre -c \
+"SELECT id, method, path, status_code, problem_id FROM tool_invocations ORDER BY id DESC LIMIT 20;"
 ```
 
 ## Services
