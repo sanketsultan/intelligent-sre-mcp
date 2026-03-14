@@ -50,9 +50,9 @@ variable "allocated_storage" {
 }
 
 variable "multi_az" {
-  description = "Enable Multi-AZ deployment"
+  description = "Enable Multi-AZ deployment (CKV_AWS_157: recommended true for production)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "backup_retention_days" {

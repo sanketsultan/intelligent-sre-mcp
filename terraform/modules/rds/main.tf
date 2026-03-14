@@ -8,6 +8,63 @@ terraform {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+# ---------------------------------------------------------------------------
+# CKV2_AWS_64: KMS key policy for RDS encryption key
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "rds_kms" {
+  statement {
+    sid       = "EnableRootAccess"
+    effect    = "Allow"
+    actions   = ["kms:*"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+  statement {
+    sid    = "AllowRDS"
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*",
+      "kms:GenerateDataKey*", "kms:DescribeKey",
+    ]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["rds.amazonaws.com"]
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# CKV2_AWS_30: Parameter group enabling PostgreSQL query logging
+# ---------------------------------------------------------------------------
+resource "aws_db_parameter_group" "this" {
+  name        = "${var.identifier}-pg16"
+  family      = "postgres16"
+  description = "Parameter group for ${var.identifier} with query logging enabled"
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000" # log queries taking > 1 s
+  }
+
+  parameter {
+    name  = "log_connections"
+    value = "1"
+  }
+
+  parameter {
+    name  = "log_disconnections"
+    value = "1"
+  }
+
+  tags = var.tags
+}
+
 resource "aws_db_subnet_group" "this" {
   name       = "${var.identifier}-subnet-group"
   subnet_ids = var.subnet_ids
@@ -27,13 +84,8 @@ resource "aws_security_group" "rds" {
     description     = "PostgreSQL from EKS node security groups"
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all egress"
-  }
+  # CKV_AWS_382: no open egress — RDS is a managed service that does not
+  # initiate outbound connections to the public internet.
 
   tags = merge(var.tags, { Name = "${var.identifier}-rds-sg" })
 
@@ -46,6 +98,7 @@ resource "aws_kms_key" "rds" {
   description             = "RDS encryption key for ${var.identifier}"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.rds_kms.json # CKV2_AWS_64
   tags                    = var.tags
 }
 
@@ -73,7 +126,10 @@ resource "aws_db_instance" "this" {
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
-  multi_az               = var.multi_az
+  multi_az               = var.multi_az # CKV_AWS_157: default true in variables.tf
+
+  # Parameter group (CKV2_AWS_30: query logging enabled)
+  parameter_group_name = aws_db_parameter_group.this.name
 
   # Backups
   backup_retention_period   = var.backup_retention_days
@@ -85,8 +141,14 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot       = false
 
   # Security
-  deletion_protection        = true
-  auto_minor_version_upgrade = true
+  deletion_protection                 = true
+  auto_minor_version_upgrade          = true
+  iam_database_authentication_enabled = true # CKV_AWS_161
+
+  # Performance Insights (CKV_AWS_353)
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+  performance_insights_kms_key_id       = aws_kms_key.rds.arn
 
   # Monitoring
   monitoring_interval             = 60

@@ -92,10 +92,26 @@ module "rds" {
   depends_on = [module.eks]
 }
 
+# KMS key for Secrets Manager encryption (CKV_AWS_149)
+resource "aws_kms_key" "secrets" {
+  description             = "Secrets Manager KMS key for ${var.cluster_name}"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  tags                    = local.common_tags
+}
+
+resource "aws_kms_alias" "secrets" {
+  name          = "alias/${var.cluster_name}-secrets"
+  target_key_id = aws_kms_key.secrets.key_id
+}
+
 # Store RDS password in AWS Secrets Manager (referenced by K8s ExternalSecret)
+# checkov:skip=CKV2_AWS_57: Automatic rotation requires a rotation Lambda function;
+# configure via aws_secretsmanager_secret_rotation after deploying the rotation function.
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                    = "${var.cluster_name}/postgres-credentials"
   recovery_window_in_days = 7
+  kms_key_id              = aws_kms_key.secrets.arn # CKV_AWS_149
   tags                    = local.common_tags
 }
 

@@ -12,6 +12,52 @@ terraform {
   }
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+# ---------------------------------------------------------------------------
+# KMS: EKS key policy (CKV2_AWS_64)
+# Allows: root account full access, EKS service, CloudWatch Logs service
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "eks_kms" {
+  statement {
+    sid       = "EnableRootAccess"
+    effect    = "Allow"
+    actions   = ["kms:*"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+  statement {
+    sid    = "AllowCloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*",
+      "kms:GenerateDataKey*", "kms:DescribeKey",
+    ]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["logs.${data.aws_region.current.name}.amazonaws.com"]
+    }
+  }
+  statement {
+    sid    = "AllowEKS"
+    effect = "Allow"
+    actions = [
+      "kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*",
+      "kms:GenerateDataKey*", "kms:DescribeKey",
+    ]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["eks.amazonaws.com"]
+    }
+  }
+}
+
 # EKS Cluster
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name
@@ -21,7 +67,8 @@ resource "aws_eks_cluster" "this" {
   vpc_config {
     subnet_ids              = concat(aws_subnet.public[*].id, aws_subnet.private[*].id)
     endpoint_private_access = true
-    endpoint_public_access  = true # set false for fully private clusters
+    endpoint_public_access  = var.endpoint_public_access
+    public_access_cidrs     = var.endpoint_public_access ? var.endpoint_public_cidrs : []
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
@@ -44,17 +91,20 @@ resource "aws_eks_cluster" "this" {
 }
 
 # CloudWatch log group for EKS control plane
+# CKV_AWS_338: retain >= 1 year; CKV_AWS_158: encrypted with KMS CMK
 resource "aws_cloudwatch_log_group" "eks" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 30
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.eks.arn
   tags              = var.tags
 }
 
-# KMS key for secret encryption at rest
+# KMS key for secret encryption at rest (CKV2_AWS_64: explicit key policy)
 resource "aws_kms_key" "eks" {
   description             = "EKS secret encryption key for ${var.cluster_name}"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.eks_kms.json
   tags                    = var.tags
 }
 

@@ -44,3 +44,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "endpoint_public_access" {
+  description = "Enable public access to the EKS API endpoint (CKV_AWS_39: set false for production)"
+  type        = bool
+  default     = false
+}
+
+variable "endpoint_public_cidrs" {
+  description = "CIDRs allowed to access the public EKS API endpoint (only used when endpoint_public_access = true)"
+  type        = list(string)
+  default     = []
+}
