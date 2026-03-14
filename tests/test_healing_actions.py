@@ -6,6 +6,7 @@ Tests healing actions and learning endpoints with safety mechanisms
 
 import unittest
 
+import pytest
 import requests
 
 API_URL = "http://localhost:30080"
@@ -13,6 +14,7 @@ TEST_NAMESPACE = "intelligent-sre"
 TEST_TIMEOUT = 10
 
 
+@pytest.mark.integration
 class TestHealingActions(unittest.TestCase):
     """Test suite for self-healing actions"""
 

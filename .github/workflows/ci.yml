@@ -63,8 +63,8 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -e ".[dev]"
-          pip install pytest pytest-cov pytest-asyncio
+          pip install -e .
+          pip install pytest pytest-cov pytest-asyncio requests
 
       - name: Run tests
         env:
@@ -73,7 +73,9 @@ jobs:
           PROMETHEUS_URL: "http://localhost:9090"
           ENABLE_TRACING: "false"
         run: |
+          # Skip integration tests – they require a live API server on :30080
           pytest tests/ \
+            -m "not integration" \
             --cov=src/intelligent_sre_mcp \
             --cov-report=xml \
             --cov-report=term-missing \
