@@ -56,8 +56,8 @@ resource "aws_internet_gateway" "this" {
   tags   = merge(var.tags, { Name = "${var.cluster_name}-igw" })
 }
 
-# checkov:skip=CKV2_AWS_19: EIP is associated with a NAT Gateway, not an EC2 instance
 resource "aws_eip" "nat" {
+  #checkov:skip=CKV2_AWS_19: EIP is associated with a NAT Gateway, not an EC2 instance
   count  = 1 # single NAT GW for cost; use length(local.azs) for HA
   domain = "vpc"
   tags   = merge(var.tags, { Name = "${var.cluster_name}-nat-eip-${count.index}" })
@@ -140,7 +140,10 @@ data "aws_iam_policy_document" "flow_log_policy" {
       "logs:DescribeLogGroups",
       "logs:DescribeLogStreams",
     ]
-    resources = ["*"]
+    resources = [
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/vpc/${var.cluster_name}:*",
+      "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/vpc/${var.cluster_name}/*",
+    ]
   }
 }
 

@@ -14,6 +14,9 @@ data "aws_caller_identity" "current" {}
 # CKV2_AWS_64: KMS key policy for RDS encryption key
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "rds_kms" {
+  #checkov:skip=CKV_AWS_356: KMS key policy — resources=["*"] is the required pattern for KMS inline key policies
+  #checkov:skip=CKV_AWS_109: KMS key policy — root account requires kms:* for key administration
+  #checkov:skip=CKV_AWS_111: KMS key policy — root account requires kms:* for key administration
   statement {
     sid       = "EnableRootAccess"
     effect    = "Allow"
@@ -60,6 +63,11 @@ resource "aws_db_parameter_group" "this" {
   parameter {
     name  = "log_disconnections"
     value = "1"
+  }
+
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1" # CKV2_AWS_69: enforce SSL/TLS connections in transit
   }
 
   tags = var.tags

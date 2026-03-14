@@ -20,6 +20,9 @@ data "aws_region" "current" {}
 # Allows: root account full access, EKS service, CloudWatch Logs service
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "eks_kms" {
+  #checkov:skip=CKV_AWS_356: KMS key policy — resources=["*"] is the required pattern for KMS inline key policies
+  #checkov:skip=CKV_AWS_109: KMS key policy — root account requires kms:* for key administration
+  #checkov:skip=CKV_AWS_111: KMS key policy — root account requires kms:* for key administration
   statement {
     sid       = "EnableRootAccess"
     effect    = "Allow"

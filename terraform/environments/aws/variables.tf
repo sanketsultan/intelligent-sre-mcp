@@ -44,9 +44,9 @@ variable "db_password" {
 }
 
 variable "db_multi_az" {
-  description = "Enable RDS Multi-AZ"
+  description = "Enable RDS Multi-AZ (CKV_AWS_157: default true for production)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "environment" {
