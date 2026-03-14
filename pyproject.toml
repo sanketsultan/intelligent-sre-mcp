@@ -5,9 +5,9 @@ description = "MCP server for intelligent SRE operations (local Prometheus/Alert
 requires-python = ">=3.10"
 dependencies = [
   "mcp",
-  "httpx",
-  "pydantic",
-  "python-dotenv",
+  "httpx>=0.27,<1",
+  "pydantic>=2.9,<3",
+  "python-dotenv>=1.0,<2",
 ]
 
 [build-system]
@@ -19,3 +19,41 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# ---------------------------------------------------------------------------
+# Linting: ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+  "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["intelligent_sre_mcp"]
+
+# ---------------------------------------------------------------------------
+# Testing: pytest + coverage
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--tb=short -q"
+markers = [
+    "integration: tests that require a live API server (skip in CI with -m 'not integration')",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 0   # raise this as unit tests are added

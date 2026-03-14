@@ -1,0 +1,59 @@
+# ResourceQuota – hard ceiling for the entire intelligent-sre namespace.
+# Prevents runaway pods from starving the rest of the cluster.
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: intelligent-sre-quota
+  namespace: intelligent-sre
+spec:
+  hard:
+    # Compute
+    requests.cpu: "2"
+    requests.memory: 3Gi
+    limits.cpu: "6"
+    limits.memory: 6Gi
+    # Object counts
+    pods: "30"
+    services: "20"
+    persistentvolumeclaims: "10"
+    secrets: "20"
+    configmaps: "20"
+
+---
+# LimitRange – default requests/limits applied when a container omits them.
+# This keeps every pod from defaulting to "no limit" (i.e. unlimited resources).
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: intelligent-sre-limits
+  namespace: intelligent-sre
+spec:
+  limits:
+    # Container defaults
+    - type: Container
+      default:
+        cpu: 200m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      max:
+        cpu: "2"
+        memory: 2Gi
+      min:
+        cpu: 10m
+        memory: 32Mi
+
+    # Pod-level maximum (sum of all containers)
+    - type: Pod
+      max:
+        cpu: "4"
+        memory: 4Gi
+
+    # PVC size guard
+    - type: PersistentVolumeClaim
+      max:
+        storage: 50Gi
+      min:
+        storage: 1Gi

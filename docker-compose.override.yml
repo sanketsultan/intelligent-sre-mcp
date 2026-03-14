@@ -1,0 +1,38 @@
+# docker-compose.override.yml – local development overrides.
+# Automatically merged by `docker compose up` when present.
+# NOT intended for production deployment.
+
+version: "3.9"
+
+services:
+  api:
+    build:
+      # Override target to base (includes pip install -e for live reload)
+      target: deps
+    # Mount source directory for live code reload without rebuilding
+    volumes:
+      - ./src:/app/src:ro
+    environment:
+      ENABLE_TRACING: "false"
+      # Use SQLite locally to skip PostgreSQL dependency
+      ACTION_HISTORY_DB: ""
+    # Disable depends_on postgres health check for faster local startup
+    depends_on:
+      postgres:
+        condition: service_started
+    # Expose extra port for debugger (e.g. debugpy)
+    ports:
+      - "8080:8080"
+      - "5678:5678"
+    command: >
+      python -m uvicorn intelligent_sre_mcp.api_server:app
+        --host 0.0.0.0
+        --port 8080
+        --reload
+        --reload-dir /app/src
+
+  # Relax read-only for local dev (volume mounts need write access)
+  postgres:
+    # Keep postgres but do NOT require healthy state for api to start
+    healthcheck:
+      interval: 5s

@@ -4,11 +4,11 @@ Action learning and effectiveness tracking for healing actions.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta
 import contextvars
 import os
 import sqlite3
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 try:
@@ -108,9 +108,7 @@ class ActionHistoryStore:
                     )
                     """
                 )
-                cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status)"
-                )
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status)")
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_problems_updated ON problems(last_updated)"
                 )
@@ -141,9 +139,7 @@ class ActionHistoryStore:
                 cursor.execute(
                     "ALTER TABLE agent_activity ADD COLUMN IF NOT EXISTS problem_id INTEGER"
                 )
-                cursor.execute(
-                    "ALTER TABLE problems ADD COLUMN IF NOT EXISTS fingerprint TEXT"
-                )
+                cursor.execute("ALTER TABLE problems ADD COLUMN IF NOT EXISTS fingerprint TEXT")
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_problems_fingerprint ON problems(fingerprint)"
                 )
@@ -204,9 +200,7 @@ class ActionHistoryStore:
                     )
                     """
                 )
-                cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status)"
-                )
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_problems_status ON problems(status)")
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_problems_updated ON problems(last_updated)"
                 )
@@ -331,6 +325,7 @@ class ActionHistoryStore:
             "success_rate": round((successful / total) * 100, 1) if total else 0,
             "by_action_type": by_action,
         }
+
     def recurring_issues(self, hours: int = 24, min_count: int = 2) -> List[Dict[str, Any]]:
         cutoff = datetime.utcnow() - timedelta(hours=hours)
         cutoff_iso = cutoff.isoformat()
@@ -367,7 +362,12 @@ class ActionHistoryStore:
             )
             cursor.execute(
                 query,
-                (outcome.outcome, outcome.resolution_time_seconds, outcome.notes, outcome.action_id),
+                (
+                    outcome.outcome,
+                    outcome.resolution_time_seconds,
+                    outcome.notes,
+                    outcome.action_id,
+                ),
             )
             return cursor.rowcount > 0
 
@@ -419,7 +419,15 @@ class ActionHistoryStore:
             )
             cursor.execute(
                 query,
-                (activity_time, intent, inputs_summary, action_taken, outcome, notes, resolved_problem_id),
+                (
+                    activity_time,
+                    intent,
+                    inputs_summary,
+                    action_taken,
+                    outcome,
+                    notes,
+                    resolved_problem_id,
+                ),
             )
             if self.is_postgres:
                 cursor.execute("SELECT LASTVAL()")
@@ -562,7 +570,16 @@ class ActionHistoryStore:
             )
             cursor.execute(
                 query,
-                (now, method, path, query_params, body, status_code, duration_ms, resolved_problem_id),
+                (
+                    now,
+                    method,
+                    path,
+                    query_params,
+                    body,
+                    status_code,
+                    duration_ms,
+                    resolved_problem_id,
+                ),
             )
             if self.is_postgres:
                 cursor.execute("SELECT LASTVAL()")
@@ -645,7 +662,9 @@ class ActionHistoryStore:
         }
 
     @staticmethod
-    def _ensure_sqlite_column(conn: sqlite3.Connection, table: str, column: str, column_type: str) -> None:
+    def _ensure_sqlite_column(
+        conn: sqlite3.Connection, table: str, column: str, column_type: str
+    ) -> None:
         cursor = conn.cursor()
         cursor.execute(f"PRAGMA table_info({table})")
         existing = {row[1] for row in cursor.fetchall()}
