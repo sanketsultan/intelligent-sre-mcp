@@ -27,6 +27,8 @@ class Colors:
 
 
 class TestRunner:
+    __test__ = False  # not a pytest test class; suppresses PytestCollectionWarning
+
     def __init__(self):
         self.passed = 0
         self.failed = 0
