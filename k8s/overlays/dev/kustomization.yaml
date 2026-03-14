@@ -10,3 +10,9 @@ resources:
   - postgres.yaml
   - postgres-pv.yaml
   - demo-metrics.yaml
+
+# Image tag is injected by CI:
+#   kustomize edit set image ghcr.io/sanketsultan/intelligent-sre-mcp=ghcr.io/sanketsultan/intelligent-sre-mcp:<tag>
+images:
+  - name: ghcr.io/sanketsultan/intelligent-sre-mcp
+    newTag: latest
