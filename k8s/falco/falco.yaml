@@ -1,0 +1,207 @@
+---
+# Falco DaemonSet – runtime security for the intelligent-sre namespace
+# Install via Helm (recommended) or apply this manifest directly.
+#
+# Helm (preferred):
+#   helm repo add falcosecurity https://falcosecurity.github.io/charts
+#   helm upgrade --install falco falcosecurity/falco \
+#     --namespace falco --create-namespace \
+#     --values k8s/falco/falco-helm-values.yaml
+#
+# This manifest provides a minimal standalone deployment for environments
+# where Helm is unavailable.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: falco
+  labels:
+    pod-security.kubernetes.io/enforce: privileged  # Falco needs host access
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falco
+  namespace: falco
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: falco
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - namespaces
+      - pods
+      - replicationcontrollers
+      - replicasets
+      - services
+      - daemonsets
+      - deployments
+      - events
+      - configmaps
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+      - statefulsets
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/healthz", "/healthz/*"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: falco
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: falco
+subjects:
+  - kind: ServiceAccount
+    name: falco
+    namespace: falco
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: falco
+  namespace: falco
+  labels:
+    app: falco
+    version: "0.39.1"
+spec:
+  selector:
+    matchLabels:
+      app: falco
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: falco
+        version: "0.39.1"
+    spec:
+      serviceAccountName: falco
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+      hostNetwork: true
+      hostPID: true
+      hostIPC: false
+      priorityClassName: system-node-critical
+      initContainers:
+        - name: falco-driver-loader
+          image: falcosecurity/falco-driver-loader:0.39.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /host/proc
+              name: proc-fs
+              readOnly: true
+            - mountPath: /host/boot
+              name: boot-fs
+              readOnly: true
+            - mountPath: /host/lib/modules
+              name: lib-modules
+            - mountPath: /host/usr
+              name: usr-fs
+              readOnly: true
+            - mountPath: /host/etc
+              name: etc-fs
+              readOnly: true
+          env:
+            - name: HOST_ROOT
+              value: /host
+            - name: FALCO_DRIVER_LOADER_OPTIONS
+              value: "--compile"
+      containers:
+        - name: falco
+          image: falcosecurity/falco-no-driver:0.39.1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          args:
+            - /usr/bin/falco
+            - --cri=/run/containerd/containerd.sock
+            - --k8s-api=https://$(KUBERNETES_SERVICE_HOST)
+            - -K=/var/run/secrets/kubernetes.io/serviceaccount/token
+            - -k
+            - --k8s-api-cert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          env:
+            - name: FALCO_K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8765
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8765
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - mountPath: /etc/falco
+              name: falco-config
+            - mountPath: /etc/falco/rules.d
+              name: falco-rules
+            - mountPath: /host/proc
+              name: proc-fs
+              readOnly: true
+            - mountPath: /host/dev
+              name: dev-fs
+            - mountPath: /run/containerd/containerd.sock
+              name: containerd-socket
+      volumes:
+        - name: falco-config
+          configMap:
+            name: falco-config
+        - name: falco-rules
+          configMap:
+            name: falco-custom-rules
+        - name: proc-fs
+          hostPath:
+            path: /proc
+        - name: dev-fs
+          hostPath:
+            path: /dev
+        - name: boot-fs
+          hostPath:
+            path: /boot
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: usr-fs
+          hostPath:
+            path: /usr
+        - name: etc-fs
+          hostPath:
+            path: /etc
+        - name: containerd-socket
+          hostPath:
+            path: /run/containerd/containerd.sock

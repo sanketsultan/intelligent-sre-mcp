@@ -1,0 +1,137 @@
+---
+# Falco Sidekick – forwards Falco events to Slack / webhook / Loki
+# Configure outputs via the falco-sidekick-config ConfigMap below.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falco-sidekick
+  namespace: falco
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-sidekick-config
+  namespace: falco
+data:
+  config.yaml: |
+    # ---------------------------------------------------------------------------
+    # Falco Sidekick configuration
+    # Ref: https://github.com/falcosecurity/falcosidekick
+    # ---------------------------------------------------------------------------
+
+    # Falco gRPC input
+    listenaddress: "0.0.0.0"
+    listenport: 2801
+
+    # Minimum priority to forward (emergency, alert, critical, error, warning, notice, info, debug)
+    minimumpriority: "warning"
+
+    # Output to Loki (log aggregation)
+    loki:
+      hostport: "http://loki.intelligent-sre.svc.cluster.local:3100"
+      minimumpriority: "warning"
+      tenant: ""
+      endpoint: "/loki/api/v1/push"
+      extralabels: "source=falco,env=production"
+
+    # Output to Slack – set FALCO_SLACK_WEBHOOK_URL in a Secret
+    # slack:
+    #   webhookurl: ""
+    #   channel: "#sre-alerts"
+    #   minimumpriority: "critical"
+    #   messageformat: "long"
+
+    # Prometheus metrics endpoint (for Grafana dashboards)
+    prometheusmetrics:
+      enabled: true
+
+    # Custom fields added to every event
+    customfields:
+      cluster: "intelligent-sre"
+      environment: "production"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falco-sidekick
+  namespace: falco
+  labels:
+    app: falco-sidekick
+    version: "2.29.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: falco-sidekick
+  template:
+    metadata:
+      labels:
+        app: falco-sidekick
+        version: "2.29.0"
+    spec:
+      serviceAccountName: falco-sidekick
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: falco-sidekick
+          image: falcosecurity/falcosidekick:2.29.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 2801
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: CONFIG
+              value: /etc/falcosidekick/config.yaml
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 2801
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 2801
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/falcosidekick
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: falco-sidekick-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco-sidekick
+  namespace: falco
+  labels:
+    app: falco-sidekick
+spec:
+  selector:
+    app: falco-sidekick
+  ports:
+    - name: http
+      port: 2801
+      targetPort: 2801

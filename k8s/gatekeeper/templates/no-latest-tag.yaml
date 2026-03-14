@@ -1,0 +1,35 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: nolatesttag
+  annotations:
+    description: "Prohibits container images with the :latest tag or no tag (implicitly :latest)."
+spec:
+  crd:
+    spec:
+      names:
+        kind: NoLatestTag
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package nolatesttag
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          has_latest_tag(container.image)
+          msg := sprintf("Container '%v' uses image '%v' with :latest tag. Pin to a specific digest or version tag.", [container.name, container.image])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          has_latest_tag(container.image)
+          msg := sprintf("Init container '%v' uses image '%v' with :latest tag. Pin to a specific digest or version tag.", [container.name, container.image])
+        }
+
+        has_latest_tag(image) {
+          endswith(image, ":latest")
+        }
+
+        has_latest_tag(image) {
+          not contains(image, ":")
+        }

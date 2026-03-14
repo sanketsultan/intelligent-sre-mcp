@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-config
+  namespace: falco
+data:
+  falco.yaml: |
+    # ---------------------------------------------------------------------------
+    # Falco configuration for intelligent-sre-mcp
+    # ---------------------------------------------------------------------------
+
+    rules_file:
+      - /etc/falco/falco_rules.yaml
+      - /etc/falco/falco_rules.local.yaml
+      - /etc/falco/rules.d/
+
+    # JSON output for Loki / Promtail ingestion
+    json_output: true
+    json_include_output_property: true
+    json_include_tags_property: true
+
+    # Log level: emergency, alert, critical, error, warning, notice, info, debug
+    log_stderr: true
+    log_syslog: false
+    log_level: info
+
+    # Output channels
+    stdout_output:
+      enabled: true
+
+    # gRPC server for falco-sidekick
+    grpc:
+      enabled: true
+      bind_address: "0.0.0.0:5060"
+      threadiness: 8
+
+    grpc_output:
+      enabled: true
+
+    # Webserver for health checks
+    webserver:
+      enabled: true
+      listen_port: 8765
+      k8s_healthz_endpoint: /healthz
+      ssl_enabled: false
+
+    # Syscall buffer size (pages, must be a power of 2)
+    syscall_buf_size_preset: 4
+
+    # Kubernetes audit log support
+    k8s_audit_endpoint: /k8s-audit
+    k8s_audit_server_port: 9765
+
+    # Metrics
+    metrics:
+      enabled: true
+      interval: 1m
+      output_rule: true
+      resource_utilization_enabled: true

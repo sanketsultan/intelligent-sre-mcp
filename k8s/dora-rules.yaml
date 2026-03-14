@@ -1,0 +1,157 @@
+---
+# DORA Metrics Recording Rules
+# Approximates the 4 DORA (DevOps Research and Assessment) key metrics
+# from Kubernetes / Prometheus signals.
+#
+# Metrics:
+#   1. Deployment Frequency        – how often code reaches production
+#   2. Lead Time for Changes       – approximated via deployment history
+#   3. Change Failure Rate         – fraction of deploys causing incidents
+#   4. Mean Time to Restore (MTTR) – average recovery time from failures
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dora-rules
+  namespace: intelligent-sre
+  labels:
+    app:     prometheus
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # -----------------------------------------------------------------------
+    # 1. Deployment Frequency
+    # Signal: rate of kube_deployment_status_observed_generation increases
+    #         (each generation bump = a new rollout triggered)
+    # -----------------------------------------------------------------------
+    - name: dora.deployment_frequency
+      interval: 1m
+      rules:
+        # Raw rate of deployment rollouts per hour
+        - record: dora:deployment_frequency:rate1h
+          expr: >
+            sum(
+              rate(
+                kube_deployment_status_observed_generation{
+                  namespace="intelligent-sre"
+                }[1h]
+              )
+            ) * 3600
+
+        # Daily deployment frequency (rolling 24 h)
+        - record: dora:deployment_frequency:rate24h
+          expr: >
+            sum(
+              increase(
+                kube_deployment_status_observed_generation{
+                  namespace="intelligent-sre"
+                }[24h]
+              )
+            )
+
+        # Weekly deployment frequency (rolling 7 d)
+        - record: dora:deployment_frequency:rate7d
+          expr: >
+            sum(
+              increase(
+                kube_deployment_status_observed_generation{
+                  namespace="intelligent-sre"
+                }[7d]
+              )
+            )
+
+    # -----------------------------------------------------------------------
+    # 2. Change Failure Rate
+    # Signal: fraction of deployments that triggered a CrashLoopBackOff
+    #         (pod restart storm within 15 min of a new generation)
+    # -----------------------------------------------------------------------
+    - name: dora.change_failure_rate
+      interval: 1m
+      rules:
+        # Count of pods currently in CrashLoopBackOff in the namespace
+        - record: dora:crash_loop_pods:count
+          expr: >
+            count(
+              kube_pod_container_status_waiting_reason{
+                namespace="intelligent-sre",
+                reason="CrashLoopBackOff"
+              } == 1
+            ) or vector(0)
+
+        # Change failure rate: ratio of failing pods to total rollout events
+        # (approximation: crash pods / deployments in last 24h)
+        - record: dora:change_failure_rate:ratio
+          expr: >
+            (
+              dora:crash_loop_pods:count
+              /
+              clamp_min(dora:deployment_frequency:rate24h, 1)
+            )
+
+    # -----------------------------------------------------------------------
+    # 3. Mean Time to Restore (MTTR)
+    # Signal: duration of active CrashLoopBackOff alert windows
+    # We track when the alert fired and cleared using kube-state-metrics.
+    # As a proxy, measure how long pods stay in CrashLoopBackOff.
+    # -----------------------------------------------------------------------
+    - name: dora.mttr
+      interval: 1m
+      rules:
+        # Average time (seconds) pods spend in CrashLoopBackOff
+        - record: dora:mttr_seconds:avg
+          expr: >
+            avg(
+              time() - kube_pod_container_status_last_terminated_reason{
+                namespace="intelligent-sre",
+                reason="Error"
+              }
+            ) or vector(0)
+
+        # MTTR in minutes for dashboards
+        - record: dora:mttr_minutes:avg
+          expr: dora:mttr_seconds:avg / 60
+
+    # -----------------------------------------------------------------------
+    # 4. DORA Alerts
+    # -----------------------------------------------------------------------
+    - name: dora.alerts
+      rules:
+        # Alert if change failure rate exceeds 15% (Elite: <15%, High: 15-30%)
+        - alert: DORAHighChangeFailureRate
+          expr: dora:change_failure_rate:ratio > 0.15
+          for: 10m
+          labels:
+            severity: warning
+            team:     sre
+          annotations:
+            summary: "DORA: Change failure rate above 15%"
+            description: >
+              {{ $value | printf "%.0f%%" }} of recent deployments in the
+              intelligent-sre namespace have caused CrashLoopBackOff pods.
+              Elite teams target < 15%.  Review recent deployments.
+
+        # Alert if MTTR exceeds 1 hour (Elite: < 1 h)
+        - alert: DORAHighMTTR
+          expr: dora:mttr_minutes:avg > 60
+          for: 5m
+          labels:
+            severity: warning
+            team:     sre
+          annotations:
+            summary: "DORA: Mean time to restore exceeds 1 hour"
+            description: >
+              Average MTTR is {{ $value | printf "%.0f" }} minutes.
+              Elite teams restore in under 1 hour.  Investigate
+              CrashLoopBackOff pods and healing action effectiveness.
+
+        # Alert if deployment frequency drops to zero for 48 h (deployment freeze)
+        - alert: DORADeploymentFrequencyLow
+          expr: dora:deployment_frequency:rate24h == 0
+          for: 48h
+          labels:
+            severity: info
+            team:     sre
+          annotations:
+            summary: "DORA: No deployments in the last 48 hours"
+            description: >
+              No new deployment rollouts detected in the intelligent-sre
+              namespace for 48 hours.  Verify CI/CD pipeline health.

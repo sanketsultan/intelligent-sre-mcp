@@ -1,0 +1,38 @@
+# OPA Gatekeeper v3.17 — admission controller that enforces OPA policies.
+# Install BEFORE applying ConstraintTemplates and Constraints.
+# Source: https://raw.githubusercontent.com/open-policy-agent/gatekeeper/v3.17.0/deploy/gatekeeper.yaml
+#
+# To install: kubectl apply -f k8s/gatekeeper/install.yaml
+# To verify:  kubectl -n gatekeeper-system get pods
+#
+# This file references the official upstream manifest.
+# Pin the version tag when upgrading.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gatekeeper-system
+  labels:
+    admission.gatekeeper.sh/ignore: "no-self-managing"
+    app: gatekeeper
+    # Gatekeeper system namespace must be exempt from its own policies
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+# Install the full Gatekeeper release via its upstream manifest.
+# Run this command to apply directly from GitHub:
+#
+#   kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/v3.17.0/deploy/gatekeeper.yaml
+#
+# Or use the Helm chart (recommended for production):
+#   helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+#   helm install gatekeeper gatekeeper/gatekeeper \
+#     --namespace gatekeeper-system \
+#     --create-namespace \
+#     --version 3.17.0 \
+#     --set replicas=2 \
+#     --set auditInterval=60 \
+#     --set metricsBackend=prometheus
+#
+# The Helm approach is preferred as it supports HA (replicas=2) and
+# integrates with Prometheus for audit metrics.

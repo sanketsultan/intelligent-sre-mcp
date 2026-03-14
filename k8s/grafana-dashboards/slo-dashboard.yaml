@@ -1,0 +1,233 @@
+---
+# Grafana SLO Dashboard ConfigMap
+# Auto-provisioned by Grafana at startup via the dashboard provisioner.
+# Panels: Availability gauge, Error budget burn rate, Latency p50/p95/p99
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-slo
+  namespace: intelligent-sre
+  labels:
+    grafana_dashboard: "1"   # picked up by the sidecar provisioner
+data:
+  slo-dashboard.json: |
+    {
+      "__inputs": [],
+      "__requires": [
+        {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.0"}
+      ],
+      "annotations": {"list": []},
+      "description": "Service Level Objectives – intelligent-sre-mcp",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "max": 100,
+              "min": 99,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red",    "value": null},
+                  {"color": "yellow", "value": 99.4},
+                  {"color": "green",  "value": 99.5}
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "title": "Availability (30d)",
+          "type": "gauge",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "100 * (1 - sum(increase(http_requests_total{job=\"intelligent-sre-mcp\",status=~\"5..\"}[30d])) / sum(increase(http_requests_total{job=\"intelligent-sre-mcp\"}[30d])))",
+              "legendFormat": "Availability %",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red",    "value": null},
+                  {"color": "yellow", "value": 0.2},
+                  {"color": "green",  "value": 0.5}
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "title": "Error Budget Remaining (30d)",
+          "type": "gauge",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "slo:error_budget_remaining:30d",
+              "legendFormat": "Budget Remaining",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "critical (14.4×)"},
+                "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "warning (6×)"},
+                "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]
+              }
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"legend": {"calcs": [], "displayMode": "list"}, "tooltip": {"mode": "single"}},
+          "title": "Error Budget Burn Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "slo:burn_rate:1h",
+              "legendFormat": "1h burn rate",
+              "refId": "A"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "slo:burn_rate:6h",
+              "legendFormat": "6h burn rate",
+              "refId": "B"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "vector(14.4)",
+              "legendFormat": "critical (14.4×)",
+              "refId": "C"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "vector(6)",
+              "legendFormat": "warning (6×)",
+              "refId": "D"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 4,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table"}, "tooltip": {"mode": "multi"}},
+          "title": "Request Latency Percentiles",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "histogram_quantile(0.50, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-mcp\"}[5m])))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "histogram_quantile(0.95, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-mcp\"}[5m])))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "histogram_quantile(0.99, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-mcp\"}[5m])))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 5,
+          "options": {"legend": {"calcs": ["mean"], "displayMode": "table"}, "tooltip": {"mode": "multi"}},
+          "title": "Request Rate (rps)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "sum(rate(http_requests_total{job=\"intelligent-sre-mcp\"}[5m]))",
+              "legendFormat": "total",
+              "refId": "A"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "sum(rate(http_requests_total{job=\"intelligent-sre-mcp\",status=~\"5..\"}[5m]))",
+              "legendFormat": "5xx errors",
+              "refId": "B"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["slo", "sre", "intelligent-sre"],
+      "templating": {"list": []},
+      "time": {"from": "now-6h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "SLO Dashboard – intelligent-sre-mcp",
+      "uid": "intelligent-sre-slo",
+      "version": 1
+    }
