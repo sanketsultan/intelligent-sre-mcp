@@ -1,9 +1,12 @@
-from pydantic import BaseModel
 import os
+
+from pydantic import BaseModel
+
 
 class Settings(BaseModel):
     prometheus_url: str = "http://localhost:9090"
     request_timeout: int = 10  # seconds
+
 
 def load_settings() -> Settings:
     return Settings(

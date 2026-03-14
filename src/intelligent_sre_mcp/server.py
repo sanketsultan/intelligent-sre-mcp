@@ -1,20 +1,22 @@
 import os
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 
 # OpenTelemetry imports
-from opentelemetry import trace, metrics
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 
 mcp = FastMCP("intelligent-sre-mcp")
+
 
 # OTel configuration
 def configure_otel():
@@ -30,6 +32,7 @@ def configure_otel():
     metric_reader = PeriodicExportingMetricReader(metric_exporter)
     meter_provider = MeterProvider(metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
+
 
 configure_otel()
 

@@ -1,5 +1,7 @@
+from typing import Any, Dict
+
 import httpx
-from typing import Dict, Any
+
 
 class PrometheusClient:
     def __init__(self, base_url: str, timeout: int = 10):
