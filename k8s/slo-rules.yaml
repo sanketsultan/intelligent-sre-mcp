@@ -1,0 +1,166 @@
+---
+# SLO Recording Rules + Multi-Window Burn Rate Alerts
+# Pattern: Google SRE Book Chapter 5 – "Alerting on Burn Rate"
+#
+# SLO targets for intelligent-sre-mcp:
+#   Availability  : 99.5%  (error budget 0.5% = 43.8 min / 30 days)
+#   Error rate    : < 0.5% 5xx responses
+#   Latency p95   : < 500 ms
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: slo-rules
+  namespace: intelligent-sre
+  labels:
+    app:     prometheus
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # -----------------------------------------------------------------------
+    # 1. Base SLI recording rules
+    # -----------------------------------------------------------------------
+    - name: slo.sli
+      interval: 30s
+      rules:
+        # Good requests: non-5xx HTTP responses from the MCP API
+        - record: slo:http_requests_good:rate5m
+          expr: >
+            sum(rate(http_requests_total{job="intelligent-sre-mcp",status!~"5.."}[5m]))
+
+        # Total requests
+        - record: slo:http_requests_total:rate5m
+          expr: >
+            sum(rate(http_requests_total{job="intelligent-sre-mcp"}[5m]))
+
+        # Error ratio (5xx / total); 0 when no traffic
+        - record: slo:error_ratio:rate5m
+          expr: >
+            (slo:http_requests_total:rate5m - slo:http_requests_good:rate5m)
+              / on() group_left()
+            (slo:http_requests_total:rate5m > 0)
+
+        # Request latency histogram – p95 over 5 min
+        - record: slo:latency_p95:rate5m
+          expr: >
+            histogram_quantile(0.95,
+              sum by (le) (
+                rate(http_request_duration_seconds_bucket{job="intelligent-sre-mcp"}[5m])
+              )
+            )
+
+        # Availability (uptime) – fraction of time the service is up
+        - record: slo:availability:rate5m
+          expr: >
+            avg_over_time(up{job="intelligent-sre-mcp"}[5m])
+
+    # -----------------------------------------------------------------------
+    # 2. Multi-window error budget burn rates
+    #    burn_rate = actual_error_ratio / (1 - SLO_target)
+    #    SLO_target = 0.995  →  error_budget = 0.005
+    # -----------------------------------------------------------------------
+    - name: slo.burn_rate
+      interval: 1m
+      rules:
+        # Short window burn rate (1 h)
+        - record: slo:burn_rate:1h
+          expr: >
+            (
+              sum(rate(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[1h]))
+              /
+              sum(rate(http_requests_total{job="intelligent-sre-mcp"}[1h]))
+            ) / 0.005
+
+        # Medium window burn rate (6 h)
+        - record: slo:burn_rate:6h
+          expr: >
+            (
+              sum(rate(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[6h]))
+              /
+              sum(rate(http_requests_total{job="intelligent-sre-mcp"}[6h]))
+            ) / 0.005
+
+        # Long window burn rate (3 d)
+        - record: slo:burn_rate:3d
+          expr: >
+            (
+              sum(rate(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[3d]))
+              /
+              sum(rate(http_requests_total{job="intelligent-sre-mcp"}[3d]))
+            ) / 0.005
+
+        # Remaining error budget (fraction of 30-day budget left)
+        - record: slo:error_budget_remaining:30d
+          expr: >
+            1 - (
+              sum(increase(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[30d]))
+              /
+              (sum(increase(http_requests_total{job="intelligent-sre-mcp"}[30d])) * 0.005)
+            )
+
+    # -----------------------------------------------------------------------
+    # 3. Multi-window burn rate alerts
+    # -----------------------------------------------------------------------
+    - name: slo.alerts
+      rules:
+        # --- CRITICAL: fast burn (2% budget consumed in 1 h → page) ---
+        # Burn rate > 14.4 for 2 min sustained (1 h window)
+        - alert: SLOErrorBudgetFastBurn
+          expr: slo:burn_rate:1h > 14.4
+          for: 2m
+          labels:
+            severity: critical
+            slo:       availability
+            service:   intelligent-sre-mcp
+          annotations:
+            summary: "SLO fast burn: error budget draining critically fast"
+            description: >
+              The 1-hour burn rate is {{ $value | printf "%.1f" }}×
+              (threshold 14.4×).  At this rate the 30-day error budget will be
+              exhausted in less than 2 hours.  Immediate action required.
+            runbook_url: "https://github.com/sanketsultan/intelligent-sre-mcp/wiki/runbooks/slo-fast-burn"
+
+        # --- WARNING: slow burn (5% budget consumed in 6 h → ticket) ---
+        # Burn rate > 6 for 15 min sustained (6 h window)
+        - alert: SLOErrorBudgetSlowBurn
+          expr: slo:burn_rate:6h > 6
+          for: 15m
+          labels:
+            severity: warning
+            slo:       availability
+            service:   intelligent-sre-mcp
+          annotations:
+            summary: "SLO slow burn: error budget depleting"
+            description: >
+              The 6-hour burn rate is {{ $value | printf "%.1f" }}×
+              (threshold 6×).  5% of the 30-day error budget will be
+              consumed within 6 hours if this rate continues.
+            runbook_url: "https://github.com/sanketsultan/intelligent-sre-mcp/wiki/runbooks/slo-slow-burn"
+
+        # --- INFO: trend burn (10% budget in 3 d → trend alert) ---
+        - alert: SLOErrorBudgetTrendBurn
+          expr: slo:burn_rate:3d > 2
+          for: 30m
+          labels:
+            severity: info
+            slo:       availability
+            service:   intelligent-sre-mcp
+          annotations:
+            summary: "SLO trend: sustained elevated error rate"
+            description: >
+              The 3-day burn rate is {{ $value | printf "%.1f" }}×.
+              At this pace 10% of the monthly error budget will be consumed.
+              Review error trends and consider proactive action.
+
+        # --- CRITICAL: p95 latency above SLO target ---
+        - alert: SLOLatencyP95Exceeded
+          expr: slo:latency_p95:rate5m > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            slo:       latency
+            service:   intelligent-sre-mcp
+          annotations:
+            summary: "SLO latency breach: p95 > 500ms"
+            description: >
+              p95 request latency is {{ $value | printf "%.3f" }}s
+              (SLO target < 0.5s).

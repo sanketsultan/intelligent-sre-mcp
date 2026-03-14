@@ -110,13 +110,18 @@ jobs:
 
       - name: Validate manifests
         run: |
-          # alert_rules.yaml contains Prometheus rule groups, not K8s resources – skip it
-          kubeconform \
-            -strict \
-            -ignore-missing-schemas \
-            -kubernetes-version 1.29.0 \
-            -summary \
-            $(ls k8s/*.yaml | grep -v alert_rules.yaml)
+          # Exclude files that are not plain K8s resources:
+          #   alert_rules.yaml  – Prometheus rule groups (YAML, not K8s manifest)
+          #   slo-rules.yaml    – PrometheusRule CRD (custom schema, -ignore-missing-schemas handles it)
+          #   dora-rules.yaml   – PrometheusRule CRD
+          # Recursively validate k8s/ and subdirectories.
+          find k8s/ -name "*.yaml" \
+            ! -name "alert_rules.yaml" \
+            | xargs kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -kubernetes-version 1.29.0 \
+              -summary
 
   # ---------------------------------------------------------------------------
   # Docker build – validates the image builds cleanly (no push on CI)
@@ -151,3 +156,45 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
+
+  # ---------------------------------------------------------------------------
+  # Terraform – fmt check, tflint, and checkov IaC security scan
+  # ---------------------------------------------------------------------------
+  terraform:
+    name: Terraform Lint & Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.53.0
+
+      - name: TFLint – init plugins
+        run: tflint --init
+        working-directory: terraform/
+
+      - name: TFLint – lint all modules
+        run: tflint --recursive --format compact
+        working-directory: terraform/
+
+      - name: Checkov – IaC security scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/
+          framework: terraform
+          compact: true
+          quiet: true
+          # Soft-fail so CI stays green on known/accepted findings;
+          # remove soft_fail to enforce zero violations.
+          soft_fail: true
+          output_format: cli

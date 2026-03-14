@@ -1,6 +1,8 @@
+import json
+import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -30,6 +32,44 @@ from intelligent_sre_mcp.tools.healing_actions import HealingActions
 # Import Kubernetes tools
 from intelligent_sre_mcp.tools.k8s_tools import KubernetesTools
 from intelligent_sre_mcp.tools.pattern_recognition import PatternRecognizer
+
+# ---------------------------------------------------------------------------
+# Structured JSON logging
+# ---------------------------------------------------------------------------
+
+
+class _JsonFormatter(logging.Formatter):
+    """Emit one JSON object per log record – compatible with Loki/Promtail."""
+
+    def format(self, record: logging.LogRecord) -> str:  # noqa: A003
+        payload: dict = {
+            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        # Merge any extra fields passed via the `extra=` kwarg
+        for key, value in record.__dict__.items():
+            if key not in logging.LogRecord.__dict__ and not key.startswith("_"):
+                payload[key] = value
+        return json.dumps(payload, default=str)
+
+
+def _configure_logging() -> logging.Logger:
+    handler = logging.StreamHandler()
+    handler.setFormatter(_JsonFormatter())
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    return logging.getLogger("intelligent_sre_mcp")
+
+
+logger = _configure_logging()
+
+# ---------------------------------------------------------------------------
 
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
@@ -97,13 +137,27 @@ async def log_tool_invocation(request, call_next):
         pass
     finally:
         set_current_problem_id(None)
+
+    logger.info(
+        "%s %s %s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        extra={
+            "http_method": request.method,
+            "http_path": request.url.path,
+            "http_status": response.status_code,
+            "duration_ms": round(duration_ms, 2),
+            "problem_id": request_problem_id,
+        },
+    )
     return response
 
 
 # OTel configuration
 def configure_otel():
     if not ENABLE_TRACING:
-        print(f"OpenTelemetry tracing disabled (ENABLE_TRACING={ENABLE_TRACING})")
+        logger.info("OpenTelemetry tracing disabled", extra={"enable_tracing": ENABLE_TRACING})
         return
 
     try:
@@ -131,10 +185,11 @@ def configure_otel():
         FastAPIInstrumentor.instrument_app(app)
         HTTPXClientInstrumentor().instrument()
 
-        print(f"OpenTelemetry configured: {OTLP_ENDPOINT}")
+        logger.info("OpenTelemetry configured", extra={"otlp_endpoint": OTLP_ENDPOINT})
     except Exception as e:
-        print(f" Failed to configure OpenTelemetry: {e}")
-        print("   Continuing without tracing...")
+        logger.warning(
+            "Failed to configure OpenTelemetry; continuing without tracing", extra={"error": str(e)}
+        )
 
 
 configure_otel()

@@ -1,0 +1,168 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-custom-rules
+  namespace: falco
+data:
+  intelligent-sre-rules.yaml: |
+    # ---------------------------------------------------------------------------
+    # Custom Falco rules for intelligent-sre-mcp
+    # Follows Google/AWS SRE threat model: least-privilege container behavior.
+    # ---------------------------------------------------------------------------
+
+    # ---------------------------------------------------------------------------
+    # Macros
+    # ---------------------------------------------------------------------------
+
+    - macro: intelligent_sre_container
+      condition: >
+        container.image.repository contains "intelligent-sre-mcp" or
+        k8s.ns.name = "intelligent-sre"
+
+    - macro: postgres_container
+      condition: >
+        container.image.repository contains "postgres"
+
+    - macro: allowed_outbound_ips
+      condition: >
+        fd.sip != "0.0.0.0" and
+        fd.sip != "127.0.0.1"
+
+    # ---------------------------------------------------------------------------
+    # Rule 1: Shell spawned inside intelligent-sre pod
+    # Severity: CRITICAL – unexpected shell indicates container escape or intrusion
+    # ---------------------------------------------------------------------------
+    - rule: Shell Spawned in SRE Container
+      desc: >
+        A shell was spawned inside an intelligent-sre container.
+        Legitimate containers should not need interactive shells.
+      condition: >
+        spawned_process and
+        intelligent_sre_container and
+        proc.name in (bash, sh, zsh, fish, dash, ksh, csh, tcsh) and
+        not proc.pname in (python3, python, gunicorn, uvicorn)
+      output: >
+        Shell spawned in SRE container
+        (user=%user.name user_loginuid=%user.loginuid
+         command=%proc.cmdline pid=%proc.pid
+         container=%container.id image=%container.image.repository
+         k8s_ns=%k8s.ns.name k8s_pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [intelligent-sre, shell, container-escape, mitre_execution]
+
+    # ---------------------------------------------------------------------------
+    # Rule 2: Unexpected outbound connection from API server
+    # Severity: WARNING – exfiltration or C2 communication
+    # ---------------------------------------------------------------------------
+    - rule: Unexpected Outbound Connection from SRE API
+      desc: >
+        The intelligent-sre-mcp API server made an outbound connection to an
+        unexpected destination. Allowed: Prometheus (9090), Alertmanager (9093),
+        PostgreSQL (5432), OTLP collector (4317/4318), Kubernetes API (6443).
+      condition: >
+        outbound and
+        intelligent_sre_container and
+        not proc.name in (python3, python) and
+        not fd.sport in (9090, 9093, 5432, 4317, 4318, 6443, 443, 80, 53)
+      output: >
+        Unexpected outbound connection from SRE API
+        (user=%user.name command=%proc.cmdline pid=%proc.pid
+         connection=%fd.name container=%container.id
+         image=%container.image.repository
+         k8s_ns=%k8s.ns.name k8s_pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [intelligent-sre, network, exfiltration, mitre_exfiltration]
+
+    # ---------------------------------------------------------------------------
+    # Rule 3: Privilege escalation attempt
+    # Severity: CRITICAL – running setuid binary or gaining extra capabilities
+    # ---------------------------------------------------------------------------
+    - rule: Privilege Escalation in SRE Namespace
+      desc: >
+        A process in the intelligent-sre namespace attempted privilege escalation
+        via setuid/setgid binary execution or capability abuse.
+      condition: >
+        spawned_process and
+        intelligent_sre_container and
+        (proc.name in (sudo, su, newgrp, sg) or
+         (evt.type = execve and proc.vpid != 1 and
+          (user.uid = 0 or ka.auth.decision = "allow") and
+          proc.is_suid_binary = true))
+      output: >
+        Privilege escalation attempt in SRE namespace
+        (user=%user.name user_loginuid=%user.loginuid
+         command=%proc.cmdline pid=%proc.pid
+         container=%container.id image=%container.image.repository
+         k8s_ns=%k8s.ns.name k8s_pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [intelligent-sre, privilege-escalation, mitre_privilege_escalation]
+
+    # ---------------------------------------------------------------------------
+    # Rule 4: Sensitive file read in PostgreSQL container
+    # Severity: WARNING – secrets/config files shouldn't be read at runtime
+    # ---------------------------------------------------------------------------
+    - rule: Sensitive File Read in Postgres Container
+      desc: >
+        A process in the postgres container read a sensitive file such as
+        pg_hba.conf or SSL private keys.  May indicate credential harvesting.
+      condition: >
+        open_read and
+        postgres_container and
+        fd.name in (/etc/postgresql/pg_hba.conf,
+                    /var/lib/postgresql/data/pg_hba.conf,
+                    /etc/ssl/private/postgres.key,
+                    /var/lib/postgresql/data/server.key) and
+        not proc.name in (postgres, pg_ctl, pg_upgrade)
+      output: >
+        Sensitive file read in postgres container
+        (user=%user.name command=%proc.cmdline pid=%proc.pid
+         file=%fd.name container=%container.id
+         image=%container.image.repository
+         k8s_ns=%k8s.ns.name k8s_pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [postgres, sensitive-file, credential-access, mitre_credential_access]
+
+    # ---------------------------------------------------------------------------
+    # Rule 5: Unexpected Kubernetes API call from SRE container
+    # Severity: WARNING – container should only call the K8s API via its SA token
+    # when explicitly performing healing actions; raw curl/wget to the API is suspicious
+    # ---------------------------------------------------------------------------
+    - rule: Unexpected K8s API Call from SRE Pod
+      desc: >
+        A non-Python process in the intelligent-sre container is contacting the
+        Kubernetes API server.  The MCP server uses the official k8s client
+        (Python); raw API calls from curl/wget indicate potential recon.
+      condition: >
+        outbound and
+        intelligent_sre_container and
+        fd.sport = 6443 and
+        not proc.name in (python3, python)
+      output: >
+        Unexpected K8s API call from SRE pod
+        (user=%user.name command=%proc.cmdline pid=%proc.pid
+         connection=%fd.name container=%container.id
+         image=%container.image.repository
+         k8s_ns=%k8s.ns.name k8s_pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [intelligent-sre, k8s-api, recon, mitre_discovery]
+
+    # ---------------------------------------------------------------------------
+    # Rule 6: Write to /proc or /sys from SRE container
+    # Severity: CRITICAL – could be kernel-level exploit
+    # ---------------------------------------------------------------------------
+    - rule: Write to Proc or Sys Filesystem in SRE Container
+      desc: >
+        A process in the intelligent-sre container wrote to /proc or /sys.
+        This is never expected and may indicate a kernel exploit attempt.
+      condition: >
+        open_write and
+        intelligent_sre_container and
+        (fd.name startswith /proc/ or fd.name startswith /sys/)
+      output: >
+        Write to /proc or /sys in SRE container
+        (user=%user.name command=%proc.cmdline pid=%proc.pid
+         file=%fd.name container=%container.id
+         image=%container.image.repository
+         k8s_ns=%k8s.ns.name k8s_pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [intelligent-sre, kernel-exploit, mitre_privilege_escalation]

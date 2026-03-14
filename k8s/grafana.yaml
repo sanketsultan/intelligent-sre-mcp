@@ -1,4 +1,18 @@
 ---
+# Grafana credentials – change GF_SECURITY_ADMIN_PASSWORD before deploying.
+# In production inject this from an external secret manager (e.g. AWS Secrets Manager,
+# Vault, or a Sealed Secret).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-credentials
+  namespace: intelligent-sre
+type: Opaque
+stringData:
+  admin-user:     admin
+  admin-password: changeme   # CHANGE THIS – never commit real passwords
+---
+# Datasource provisioning: Prometheus + Loki
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,11 +24,52 @@ data:
     datasources:
       - name: Prometheus
         type: prometheus
+        uid:  prometheus
         access: proxy
         url: http://prometheus:9090
         isDefault: true
         editable: true
+        jsonData:
+          timeInterval: "15s"
+          queryTimeout: "60s"
+          httpMethod: POST
 
+      - name: Loki
+        type: loki
+        uid:  loki
+        access: proxy
+        url: http://loki:3100
+        isDefault: false
+        editable: true
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            - name: problem_id
+              matcherRegex: '"problem_id":(\d+)'
+              url: "/d/intelligent-sre-slo?var-problem_id=$${__value.raw}"
+---
+# Dashboard provisioning configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provisioner
+  namespace: intelligent-sre
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: "SRE Dashboards"
+        folderUid: sre-dashboards
+        type: file
+        disableDeletion: false
+        editable: true
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /etc/grafana/provisioning/dashboards/files
+          foldersFromFilesStructure: false
 ---
 apiVersion: v1
 kind: Service
@@ -33,7 +88,6 @@ spec:
       name: http
   selector:
     app: grafana
-
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,6 +96,7 @@ metadata:
   namespace: intelligent-sre
   labels:
     app: grafana
+    version: "11.3.2"
 spec:
   replicas: 1
   selector:
@@ -51,49 +106,111 @@ spec:
     metadata:
       labels:
         app: grafana
+        version: "11.3.2"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser:    472
+        runAsGroup:   472
+        fsGroup:      472
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: grafana
-          image: grafana/grafana:latest
+          image: grafana/grafana:11.3.2
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem:   true
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: GF_SECURITY_ADMIN_USER
-              value: "admin"
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-credentials
+                  key:  admin-user
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: "admin"
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-credentials
+                  key:  admin-password
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
             - name: GF_SERVER_ROOT_URL
               value: "http://localhost:30300"
+            - name: GF_PATHS_PROVISIONING
+              value: /etc/grafana/provisioning
+            - name: GF_PATHS_DATA
+              value: /var/lib/grafana
+            - name: GF_PATHS_LOGS
+              value: /var/log/grafana
+            - name: GF_PATHS_PLUGINS
+              value: /var/lib/grafana/plugins
+            - name: GF_LOG_MODE
+              value: console
+            - name: GF_LOG_LEVEL
+              value: info
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
           volumeMounts:
-            - name: grafana-datasources
+            - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+              readOnly:  true
+            - name: dashboard-provisioner
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly:  true
+            - name: dashboard-files
+              mountPath: /etc/grafana/provisioning/dashboards/files
+              readOnly:  true
             - name: grafana-storage
               mountPath: /var/lib/grafana
+            - name: tmp
+              mountPath: /tmp
+            - name: grafana-logs
+              mountPath: /var/log/grafana
           resources:
             requests:
-              cpu: 100m
+              cpu:    100m
               memory: 128Mi
             limits:
-              cpu: 500m
+              cpu:    500m
               memory: 512Mi
           livenessProbe:
             httpGet:
               path: /api/health
               port: 3000
             initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds:       10
+            timeoutSeconds:      5
+            failureThreshold:    3
           readinessProbe:
             httpGet:
               path: /api/health
               port: 3000
             initialDelaySeconds: 10
-            periodSeconds: 5
+            periodSeconds:        5
+            timeoutSeconds:       3
       volumes:
-        - name: grafana-datasources
+        - name: datasources
           configMap:
             name: grafana-datasources
+        - name: dashboard-provisioner
+          configMap:
+            name: grafana-dashboard-provisioner
+        - name: dashboard-files
+          projected:
+            sources:
+              - configMap:
+                  name: grafana-dashboard-slo
+              - configMap:
+                  name: grafana-dashboard-dora
         - name: grafana-storage
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: grafana-logs
           emptyDir: {}

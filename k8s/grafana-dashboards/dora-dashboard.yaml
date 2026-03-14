@@ -1,0 +1,309 @@
+---
+# Grafana DORA Metrics Dashboard ConfigMap
+# Auto-provisioned by Grafana at startup via the dashboard provisioner.
+# Panels: Deployment Frequency, Change Failure Rate, MTTR
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-dora
+  namespace: intelligent-sre
+  labels:
+    grafana_dashboard: "1"   # picked up by the sidecar provisioner
+data:
+  dora-dashboard.json: |
+    {
+      "__inputs": [],
+      "__requires": [
+        {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.0"}
+      ],
+      "annotations": {"list": []},
+      "description": "DORA Key Metrics – intelligent-sre-mcp",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red",    "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "green",  "value": 7}
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "auto"
+          },
+          "title": "Deployments (last 7 days)",
+          "type": "stat",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:deployment_frequency:rate7d",
+              "legendFormat": "Deploys / 7d",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green",  "value": null},
+                  {"color": "yellow", "value": 0.15},
+                  {"color": "red",    "value": 0.30}
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "auto"
+          },
+          "title": "Change Failure Rate",
+          "type": "stat",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:change_failure_rate:ratio",
+              "legendFormat": "CFR",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green",  "value": null},
+                  {"color": "yellow", "value": 60},
+                  {"color": "red",    "value": 240}
+                ]
+              },
+              "unit": "m"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "auto"
+          },
+          "title": "Mean Time to Restore (MTTR)",
+          "type": "stat",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:mttr_minutes:avg",
+              "legendFormat": "MTTR (min)",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "red",    "index": 0, "text": "Low"},
+                             "1": {"color": "yellow", "index": 1, "text": "Medium"},
+                             "7": {"color": "green",  "index": 2, "text": "High"}},
+                 "type": "value"}
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red",    "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "green",  "value": 7}
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+          "id": 4,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "auto"
+          },
+          "title": "Deployments (last 24 hours)",
+          "type": "stat",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:deployment_frequency:rate24h",
+              "legendFormat": "Deploys / 24h",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
+          "id": 5,
+          "options": {"legend": {"calcs": ["sum"], "displayMode": "table"}, "tooltip": {"mode": "multi"}},
+          "title": "Deployment Frequency (over time)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:deployment_frequency:rate1h",
+              "legendFormat": "deploys/h",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
+          "id": 6,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table"}, "tooltip": {"mode": "multi"}},
+          "title": "Change Failure Rate (over time)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:change_failure_rate:ratio",
+              "legendFormat": "CFR",
+              "refId": "A"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "vector(0.15)",
+              "legendFormat": "Elite threshold (15%)",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "m"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 9, "w": 12, "x": 0, "y": 17},
+          "id": 7,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table"}, "tooltip": {"mode": "single"}},
+          "title": "MTTR (minutes over time)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:mttr_minutes:avg",
+              "legendFormat": "MTTR",
+              "refId": "A"
+            },
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "vector(60)",
+              "legendFormat": "Elite threshold (60 min)",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "spanNulls": false},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 9, "w": 12, "x": 12, "y": 17},
+          "id": 8,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table"}, "tooltip": {"mode": "multi"}},
+          "title": "CrashLoopBackOff Pods (change failure signal)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "dora:crash_loop_pods:count",
+              "legendFormat": "CrashLoop pods",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "1m",
+      "schemaVersion": 39,
+      "tags": ["dora", "sre", "intelligent-sre"],
+      "templating": {"list": []},
+      "time": {"from": "now-24h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "DORA Metrics – intelligent-sre-mcp",
+      "uid": "intelligent-sre-dora",
+      "version": 1
+    }

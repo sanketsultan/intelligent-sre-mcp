@@ -1,0 +1,28 @@
+# Pod Security Standards — enforce the "restricted" profile on the namespace.
+# This is the CIS Kubernetes Benchmark recommended baseline for production.
+#
+# "restricted" requires:
+#   - runAsNonRoot: true
+#   - allowPrivilegeEscalation: false
+#   - seccompProfile: RuntimeDefault or Localhost
+#   - capabilities: drop ALL
+#   - hostProcess / hostPID / hostIPC: false
+#   - hostNetwork / hostPorts: false
+#   - volumes: only safe subset (configMap, emptyDir, projected, secret, downwardAPI, PVC)
+#
+# All existing deployments in this repo already satisfy these requirements.
+# Apply with: kubectl apply -f k8s/pod-security.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intelligent-sre
+  labels:
+    # Enforce: reject pods that violate the policy
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    # Warn: surface violations as warnings (useful during migration)
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    # Audit: log violations to the audit log
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
