@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - pod-security.yaml
+  - gatekeeper/install.yaml
+  - gatekeeper/templates/require-labels.yaml
+  - gatekeeper/templates/no-latest-tag.yaml
+  - gatekeeper/templates/require-resources.yaml
+  - gatekeeper/templates/require-non-root.yaml
+  - gatekeeper/constraints/require-labels.yaml
+  - gatekeeper/constraints/no-latest-tag.yaml
+  - gatekeeper/constraints/require-resources.yaml
+  - gatekeeper/constraints/require-non-root.yaml
+  # Falco runs in its own namespace; apply separately:
+  #   kubectl apply -k k8s/base/security/falco/
+  # - falco/falco.yaml
+  # - falco/falco-config.yaml
+  # - falco/falco-rules.yaml
+  # - falco/falco-sidekick.yaml

@@ -10,14 +10,14 @@ AI-powered SRE platform exposing MCP tools for autonomous incident detection, tr
 
 ## Key files
 - `src/intelligent_sre_mcp/api_server.py` — FastAPI app, structured JSON logging
-- `src/intelligent_sre_mcp/mcp_server.py` — MCP tool definitions
+- `src/intelligent_sre_mcp/server.py` — MCP stdio server entry point
 - `k8s/kustomization.yaml` — single entry point for all K8s resources
 - `terraform/environments/aws/main.tf` — top-level AWS environment
 
 ## Dev commands
 ```bash
 docker compose up          # run full stack locally
-pytest tests/              # run tests
+pytest tests/unit/              # run tests
 ruff check src/            # lint
 ruff format src/           # format
 terraform fmt -recursive terraform/
@@ -35,6 +35,6 @@ checkov -d terraform/ --framework terraform --compact --quiet
 ## Conventions
 - Python: ruff enforced, no new deps without pyproject.toml update
 - Terraform: AWS provider `~> 5.0`, checkov:skip annotations go **inside** resource/data blocks
-- K8s: all resources go through `k8s/kustomization.yaml`
+- K8s: base/ + overlays/dev (local) + overlays/prod; entry: kubectl apply -k k8s/overlays/dev
 - Commits: conventional commits (`feat:`, `fix:`, `chore:`)
 - Branch: `claude/sharp-davinci` → PR to `master`
