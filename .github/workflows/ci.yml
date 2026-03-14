@@ -103,12 +103,13 @@ jobs:
 
       - name: Validate manifests
         run: |
+          # alert_rules.yaml contains Prometheus rule groups, not K8s resources – skip it
           kubeconform \
             -strict \
             -ignore-missing-schemas \
             -kubernetes-version 1.29.0 \
             -summary \
-            k8s/*.yaml
+            $(ls k8s/*.yaml | grep -v alert_rules.yaml)
 
   # ---------------------------------------------------------------------------
   # Docker build – validates the image builds cleanly (no push on CI)
