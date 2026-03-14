@@ -1,12 +1,15 @@
 # Project dependencies for intelligent-sre-mcp
-httpx
-fastapi
-uvicorn[standard]
-pydantic
-kubernetes
-opentelemetry-sdk
-opentelemetry-exporter-otlp
-opentelemetry-instrumentation
-opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-httpx
-psycopg2-binary
+# Version ranges: minimum known-good, upper bound blocks major breaking changes
+
+httpx>=0.27,<1
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1
+pydantic>=2.9,<3
+kubernetes>=31,<33
+opentelemetry-sdk>=1.28,<2
+opentelemetry-exporter-otlp>=1.28,<2
+opentelemetry-instrumentation>=0.49b0,<1
+opentelemetry-instrumentation-fastapi>=0.49b0,<1
+opentelemetry-instrumentation-httpx>=0.49b0,<1
+psycopg2-binary>=2.9,<3
+python-dotenv>=1.0,<2

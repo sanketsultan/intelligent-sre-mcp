@@ -1,0 +1,26 @@
+# OpenTelemetry Collector configuration for Docker Compose deployment.
+# K8s deployment uses the ConfigMap in k8s/configmaps.yaml instead.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:9464"
+    namespace: "otel"
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]

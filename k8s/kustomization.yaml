@@ -5,15 +5,21 @@ namespace: intelligent-sre
 
 resources:
   - namespace.yaml
+  - resource-limits.yaml      # ResourceQuota + LimitRange (apply before workloads)
+  - rbac.yaml
   - configmaps.yaml
+  - postgres.yaml
   - prometheus.yaml
   - alertmanager.yaml
   - node-exporter.yaml
+  - kube-state-metrics.yaml
   - otel-collector.yaml
   - jaeger.yaml
   - demo-metrics.yaml
   - intelligent-sre-mcp.yaml
   - grafana.yaml
+  - network-policy.yaml       # NetworkPolicies (applied after workloads exist)
+  - hpa.yaml                  # HPA (requires metrics-server)
 
 commonLabels:
   project: intelligent-sre-mcp

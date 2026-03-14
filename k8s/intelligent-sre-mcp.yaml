@@ -36,17 +36,27 @@ spec:
         app: intelligent-sre-mcp
     spec:
       serviceAccountName: intelligent-sre-mcp
+
+      # Pod-level security: run as non-root, no privilege escalation
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: intelligent-sre-mcp
           image: intelligent-sre-mcp:latest
-          imagePullPolicy: Never  # Use local image
+          imagePullPolicy: Never  # Use local image; change to IfNotPresent for registry
           env:
             - name: PROMETHEUS_URL
               value: "http://prometheus:9090"
             - name: OTLP_ENDPOINT
               value: "http://otel-collector:4317"
             - name: ENABLE_TRACING
-              value: "false"  # Disable tracing to avoid OTEL errors
+              value: "false"
             - name: REQUEST_TIMEOUT
               value: "10"
             - name: SERVICE_NAME
@@ -68,6 +78,20 @@ spec:
                   key: POSTGRES_DB
             - name: ACTION_HISTORY_DB
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+
+          # Container-level security: drop all capabilities, read-only FS
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Writable scratch space for SQLite fallback and temp files
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
           resources:
             requests:
               cpu: 100m
@@ -75,19 +99,34 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+
+          # Real HTTP health checks against the /health endpoint
           livenessProbe:
-            exec:
-              command:
-                - python
-                - -c
-                - "import sys; sys.exit(0)"
-            initialDelaySeconds: 10
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
           readinessProbe:
-            exec:
-              command:
-                - python
-                - -c
-                - "import sys; sys.exit(0)"
+            httpGet:
+              path: /health
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12   # up to 60s for startup
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

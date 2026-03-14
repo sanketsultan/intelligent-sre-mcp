@@ -17,6 +17,26 @@ spec:
     app: prometheus
 
 ---
+# PersistentVolumeClaim for Prometheus TSDB
+# Metrics survive pod restarts and node drains
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: intelligent-sre
+  labels:
+    app: prometheus
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Remove storageClassName to use cluster default; set explicitly for cloud:
+  # storageClassName: gp2          # AWS EBS
+  # storageClassName: standard     # GKE / minikube default
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,6 +46,9 @@ metadata:
     app: prometheus
 spec:
   replicas: 1
+  # Prometheus TSDB requires a single writer; recreate strategy avoids split-brain
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prometheus
@@ -34,17 +57,37 @@ spec:
       labels:
         app: prometheus
     spec:
+      # Prometheus writes to /prometheus; run as nobody (65534) for security
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          image: prom/prometheus:v2.55.1   # pinned; update deliberately
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=15d"
+            - "--storage.tsdb.retention.size=8GB"
             - "--web.console.libraries=/etc/prometheus/console_libraries"
             - "--web.console.templates=/etc/prometheus/consoles"
+            - "--web.enable-lifecycle"   # enables /-/reload without restart
           ports:
             - containerPort: 9090
               name: web
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
           volumeMounts:
             - name: prometheus-config
               mountPath: /etc/prometheus/prometheus.yml
@@ -54,6 +97,9 @@ spec:
               subPath: alert_rules.yml
             - name: prometheus-storage
               mountPath: /prometheus
+            - name: tmp
+              mountPath: /tmp
+
           resources:
             requests:
               cpu: 100m
@@ -61,6 +107,25 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
       volumes:
         - name: prometheus-config
           configMap:
@@ -69,4 +134,7 @@ spec:
           configMap:
             name: prometheus-rules
         - name: prometheus-storage
+          persistentVolumeClaim:
+            claimName: prometheus-data
+        - name: tmp
           emptyDir: {}
