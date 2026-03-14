@@ -9,11 +9,6 @@ variable "cluster_version" {
   default     = "1.31"
 }
 
-variable "region" {
-  description = "AWS region"
-  type        = string
-}
-
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string

@@ -9,9 +9,3 @@ variable "namespace" {
   type        = string
   default     = "intelligent-sre"
 }
-
-variable "image_tag" {
-  description = "Docker image tag for intelligent-sre-mcp"
-  type        = string
-  default     = "latest"
-}

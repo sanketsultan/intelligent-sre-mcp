@@ -31,6 +31,21 @@ provider "helm" {
 
 # Remote state backend — create the S3 bucket + DynamoDB table manually before init
 terraform {
+  required_version = ">= 1.9"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
+  }
   backend "s3" {
     # Override with: terraform init -backend-config=backend.hcl
     # or set TF_CLI_ARGS_init
@@ -55,7 +70,6 @@ module "eks" {
 
   cluster_name       = var.cluster_name
   cluster_version    = var.cluster_version
-  region             = var.region
   node_instance_type = var.node_instance_type
   node_desired_size  = var.node_desired_size
   node_min_size      = var.node_min_size
