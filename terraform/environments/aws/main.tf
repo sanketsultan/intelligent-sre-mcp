@@ -34,11 +34,11 @@ terraform {
   backend "s3" {
     # Override with: terraform init -backend-config=backend.hcl
     # or set TF_CLI_ARGS_init
-    bucket         = "intelligent-sre-tfstate"    # CHANGE: your unique bucket name
+    bucket         = "intelligent-sre-tfstate" # CHANGE: your unique bucket name
     key            = "environments/aws/terraform.tfstate"
-    region         = "us-east-1"                  # CHANGE: your region
+    region         = "us-east-1" # CHANGE: your region
     encrypt        = true
-    dynamodb_table = "intelligent-sre-tflock"     # CHANGE: your DynamoDB table name
+    dynamodb_table = "intelligent-sre-tflock" # CHANGE: your DynamoDB table name
   }
 }
 

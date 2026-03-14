@@ -75,12 +75,12 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot       = false
 
   # Security
-  deletion_protection      = true
+  deletion_protection        = true
   auto_minor_version_upgrade = true
 
   # Monitoring
-  monitoring_interval = 60
-  monitoring_role_arn = aws_iam_role.rds_monitoring.arn
+  monitoring_interval             = 60
+  monitoring_role_arn             = aws_iam_role.rds_monitoring.arn
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   tags = var.tags

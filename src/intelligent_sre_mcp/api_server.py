@@ -187,7 +187,9 @@ def configure_otel():
 
         logger.info("OpenTelemetry configured", extra={"otlp_endpoint": OTLP_ENDPOINT})
     except Exception as e:
-        logger.warning("Failed to configure OpenTelemetry; continuing without tracing", extra={"error": str(e)})
+        logger.warning(
+            "Failed to configure OpenTelemetry; continuing without tracing", extra={"error": str(e)}
+        )
 
 
 configure_otel()
