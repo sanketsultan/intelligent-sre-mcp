@@ -11,18 +11,25 @@ AI-powered SRE platform exposing MCP tools for autonomous incident detection, tr
 ## Key files
 - `src/intelligent_sre_mcp/api_server.py` — FastAPI app, structured JSON logging
 - `src/intelligent_sre_mcp/server.py` — MCP stdio server entry point
+- `src/intelligent_sre_mcp/sre_agent.py` — Claude-powered SRE incident response agent
 - `k8s/kustomization.yaml` — single entry point for all K8s resources
 - `terraform/environments/aws/main.tf` — top-level AWS environment
 
 ## Dev commands
 ```bash
 docker compose up          # run full stack locally
-pytest tests/unit/              # run tests
+pytest tests/unit/         # run tests
 ruff check src/            # lint
 ruff format src/           # format
 terraform fmt -recursive terraform/
 tflint --chdir terraform/modules/eks
 checkov -d terraform/ --framework terraform --compact --quiet
+
+# Run the SRE agent (requires ANTHROPIC_API_KEY and API_URL pointing to a running stack)
+python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+# Or use the convenience script:
+./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
 ```
 
 ## Slash commands

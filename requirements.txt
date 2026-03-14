@@ -1,6 +1,7 @@
 # Project dependencies for intelligent-sre-mcp
 # Version ranges: minimum known-good, upper bound blocks major breaking changes
 
+anthropic>=0.40,<1
 httpx>=0.27,<1
 fastapi>=0.115,<1
 uvicorn[standard]>=0.32,<1
