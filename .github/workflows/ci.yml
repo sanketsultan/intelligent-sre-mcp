@@ -27,6 +27,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: "requirements.txt"
 
       - name: Install ruff
         run: uv tool install "ruff>=0.8,<1"
