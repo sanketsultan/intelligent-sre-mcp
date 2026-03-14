@@ -103,8 +103,8 @@ services:
       - "--storage.tsdb.retention.size=8GB"
       - "--web.enable-lifecycle"
     volumes:
-      - ./setup/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./k8s/alert_rules.yaml:/etc/prometheus/alert_rules.yml:ro
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./k8s/base/observability/alert_rules.yaml:/etc/prometheus/alert_rules.yml:ro
       - prometheus-data:/prometheus
     networks:
       - monitoring
@@ -158,7 +158,7 @@ services:
     restart: unless-stopped
     command: ["--config=/etc/otel/config.yaml"]
     volumes:
-      - ./setup/otel-collector.yaml:/etc/otel/config.yaml:ro
+      - ./config/otel-collector.yaml:/etc/otel/config.yaml:ro
     ports:
       - "4317:4317"   # gRPC OTLP
       - "4318:4318"   # HTTP OTLP

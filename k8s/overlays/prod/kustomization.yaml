@@ -1,0 +1,13 @@
+# Prod overlay — uses RDS (Terraform-provisioned), no local postgres
+# Usage: kubectl apply -k k8s/overlays/prod
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: intelligent-sre
+
+resources:
+  - ../../base
+
+# Add prod patches here, e.g.:
+# patches:
+#   - path: patches/replica-count.yaml

@@ -1,0 +1,12 @@
+# Dev overlay — extends base with local PostgreSQL and demo workloads
+# Usage: kubectl apply -k k8s/overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: intelligent-sre
+
+resources:
+  - ../../base
+  - postgres.yaml
+  - postgres-pv.yaml
+  - demo-metrics.yaml

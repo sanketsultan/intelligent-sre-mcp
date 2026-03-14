@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - prometheus.yaml
+  - alertmanager.yaml
+  - alert_rules.yaml
+  - slo-rules.yaml
+  - dora-rules.yaml
+  - node-exporter.yaml
+  - kube-state-metrics.yaml
+  - otel-collector.yaml
+  - jaeger.yaml
+  - loki.yaml
+  - promtail.yaml
+  - grafana.yaml
+  - grafana-dashboards/slo-dashboard.yaml
+  - grafana-dashboards/dora-dashboard.yaml
