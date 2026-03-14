@@ -25,6 +25,13 @@ tflint --chdir terraform/modules/eks
 checkov -d terraform/ --framework terraform --compact --quiet
 ```
 
+## Slash commands
+- `/lint` — ruff check + format, auto-fix all issues
+- `/test` — run pytest, fix failures
+- `/tf-check` — terraform fmt + tflint + checkov, fix all issues
+- `/ci-fix` — inspect latest CI run, fix all failing jobs
+- `/pr` — create PR to master with summary and test plan
+
 ## Conventions
 - Python: ruff enforced, no new deps without pyproject.toml update
 - Terraform: AWS provider `~> 5.0`, checkov:skip annotations go **inside** resource/data blocks
