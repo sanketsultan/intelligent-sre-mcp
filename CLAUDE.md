@@ -59,3 +59,4 @@ python -m intelligent_sre_mcp.bot.discord_bot
 - K8s: base/ + overlays/dev (local) + overlays/prod; entry: kubectl apply -k k8s/overlays/dev
 - Commits: conventional commits (`feat:`, `fix:`, `chore:`)
 - Branch: `claude/sharp-davinci` → PR to `master`
+- No emojis anywhere — not in code, comments, docstrings, commit messages, PR descriptions, or bot responses
