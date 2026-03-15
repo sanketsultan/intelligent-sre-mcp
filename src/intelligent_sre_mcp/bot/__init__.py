@@ -1,0 +1,1 @@
+"""Discord SRE Bot package."""

@@ -25,7 +25,6 @@ from intelligent_sre_mcp.sre_agent import (
     run_sre_agent,
 )
 
-
 # ---------------------------------------------------------------------------
 # Tool definition schema tests
 # ---------------------------------------------------------------------------
@@ -61,9 +60,7 @@ class TestToolDefinitions:
         assert len(names) == len(set(names)), "Duplicate tool names found"
 
     def test_investigation_tools_count(self):
-        assert len(INVESTIGATION_TOOLS) >= 10, (
-            "Expected at least 10 investigation tools"
-        )
+        assert len(INVESTIGATION_TOOLS) >= 10, "Expected at least 10 investigation tools"
 
     def test_healing_tools_count(self):
         assert len(HEALING_TOOLS) >= 4, "Expected at least 4 healing tools"
@@ -114,9 +111,7 @@ class TestCallApi:
 
         mock_client = AsyncMock()
         mock_client.get = AsyncMock(
-            side_effect=httpx.HTTPStatusError(
-                "error", request=MagicMock(), response=error_response
-            )
+            side_effect=httpx.HTTPStatusError("error", request=MagicMock(), response=error_response)
         )
 
         result = await _call_api(mock_client, "get", "/detection/anomalies")
@@ -155,7 +150,7 @@ class TestExecuteTool:
     @pytest.mark.asyncio
     async def test_detect_comprehensive_calls_get(self):
         http = self._make_mock_client({"health_score": 90})
-        result = await execute_tool(http, "detect_comprehensive", {})
+        await execute_tool(http, "detect_comprehensive", {})
         http.get.assert_called_once()
         call_args = http.get.call_args
         assert "/detection/comprehensive" in call_args[0][0]
@@ -163,7 +158,7 @@ class TestExecuteTool:
     @pytest.mark.asyncio
     async def test_prom_query_calls_post(self):
         http = self._make_mock_client({"status": "success", "data": {}})
-        result = await execute_tool(http, "prom_query", {"query": "up"})
+        await execute_tool(http, "prom_query", {"query": "up"})
         http.post.assert_called_once()
         call_kwargs = http.post.call_args[1]
         assert call_kwargs["json"] == {"query": "up"}
@@ -178,9 +173,7 @@ class TestExecuteTool:
     @pytest.mark.asyncio
     async def test_get_pod_logs_includes_namespace_and_name(self):
         http = self._make_mock_client({"logs": "line1\nline2"})
-        await execute_tool(
-            http, "get_pod_logs", {"namespace": "prod", "pod_name": "api-abc123"}
-        )
+        await execute_tool(http, "get_pod_logs", {"namespace": "prod", "pod_name": "api-abc123"})
         http.get.assert_called_once()
         path = http.get.call_args[0][0]
         assert "prod" in path
@@ -189,9 +182,7 @@ class TestExecuteTool:
     @pytest.mark.asyncio
     async def test_restart_pod_calls_post(self):
         http = self._make_mock_client({"status": "deleted"})
-        await execute_tool(
-            http, "restart_pod", {"namespace": "prod", "pod_name": "api-abc123"}
-        )
+        await execute_tool(http, "restart_pod", {"namespace": "prod", "pod_name": "api-abc123"})
         http.post.assert_called_once()
         assert "/healing/restart-pod" in http.post.call_args[0][0]
 
@@ -213,9 +204,7 @@ class TestExecuteTool:
     @pytest.mark.asyncio
     async def test_update_problem_calls_patch(self):
         http = self._make_mock_client({"id": 42, "status": "resolved"})
-        await execute_tool(
-            http, "update_problem", {"problem_id": 42, "status": "resolved"}
-        )
+        await execute_tool(http, "update_problem", {"problem_id": 42, "status": "resolved"})
         http.patch.assert_called_once()
         assert "/learning/problems/42" in http.patch.call_args[0][0]
 

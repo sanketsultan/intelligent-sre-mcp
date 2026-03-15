@@ -70,6 +70,13 @@ remediation.
 3. Record the outcome via `record_agent_activity`
 4. Write a concise post-mortem:
    - **What happened** / **Root cause** / **Action taken** / **How to prevent**
+5. Create a GitHub Issue post-mortem via `create_github_issue`
+
+## Runbooks & Alerts
+- Call `get_alerts` early — Alertmanager already knows which SLOs are breached
+- Call `list_runbooks` to identify the best matching playbook for the incident type
+- Call `execute_runbook` to get an ordered, tool-by-tool investigation and remediation plan
+- Follow the runbook steps in order unless evidence points to a different root cause
 
 ## Safety Rules
 - NEVER start remediation before completing Phase 1 investigation
@@ -270,6 +277,62 @@ INVESTIGATION_TOOLS: list[dict[str, Any]] = [
             "required": ["intent", "inputs_summary", "action_taken"],
         },
     },
+    {
+        "name": "get_alerts",
+        "description": (
+            "Query Alertmanager for currently firing or pending alerts. "
+            "Returns alert name, severity, summary annotation, and how long each alert has been "
+            "active. Call this early in investigation to know which SLOs are breached and get "
+            "immediate context on the blast radius. "
+            "Requires ALERTMANAGER_URL env var (default: http://localhost:9093)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "type": "string",
+                    "enum": ["active", "suppressed", "unprocessed"],
+                    "description": "Filter by alert state — omit for all alerts",
+                },
+                "severity": {
+                    "type": "string",
+                    "description": "Filter by severity label, e.g. 'critical' or 'warning'",
+                },
+            },
+        },
+    },
+    {
+        "name": "list_runbooks",
+        "description": (
+            "List all available structured runbooks with their titles, descriptions, and symptom "
+            "lists. Use to identify which runbook best matches the current incident before calling "
+            "execute_runbook for the full step-by-step plan."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "execute_runbook",
+        "description": (
+            "Return the full structured investigation and remediation steps for a specific runbook. "
+            "Each step includes the tool to call, default arguments, and the rationale. "
+            "Follow the steps in order — they are designed to go from least to most invasive."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "enum": [
+                        "db_connection_exhaustion",
+                        "high_latency_cascade",
+                        "elevated_error_rates",
+                    ],
+                    "description": "Runbook name returned by list_runbooks",
+                }
+            },
+            "required": ["name"],
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -414,6 +477,43 @@ HEALING_TOOLS: list[dict[str, Any]] = [
             "required": ["problem_id", "status"],
         },
     },
+    {
+        "name": "create_github_issue",
+        "description": (
+            "Create a GitHub Issue as a post-mortem document for this incident. "
+            "Call at the end of Phase 2 after the incident is resolved. "
+            "Write a complete post-mortem: what happened, root cause, timeline, action taken, "
+            "and how to prevent recurrence. "
+            "Requires GITHUB_TOKEN and GITHUB_REPO (format: owner/repo) env vars."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": (
+                        "Issue title, e.g. '[Post-mortem] CrashLoopBackOff: api-server 2026-03-15'"
+                    ),
+                },
+                "body": {
+                    "type": "string",
+                    "description": (
+                        "Full post-mortem in Markdown. Include sections: "
+                        "## What Happened, ## Root Cause, ## Timeline, "
+                        "## Action Taken, ## Prevention"
+                    ),
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "GitHub labels to apply, e.g. ['incident', 'post-mortem', 'severity:high']"
+                    ),
+                },
+            },
+            "required": ["title", "body"],
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -454,41 +554,53 @@ async def execute_tool(
         case "detect_comprehensive":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/detection/comprehensive",
+                http,
+                "get",
+                "/detection/comprehensive",
                 params={"namespace": ns} if ns else {},
             )
 
         case "prom_query":
             result = await _call_api(
-                http, "post", "/query",
+                http,
+                "post",
+                "/query",
                 json={"query": tool_input["query"]},
             )
 
         case "get_health_score":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/detection/health-score",
+                http,
+                "get",
+                "/detection/health-score",
                 params={"namespace": ns} if ns else {},
             )
 
         case "detect_anomalies":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/detection/anomalies",
+                http,
+                "get",
+                "/detection/anomalies",
                 params={"namespace": ns} if ns else {},
             )
 
         case "get_failing_pods":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/k8s/pods/failing",
+                http,
+                "get",
+                "/k8s/pods/failing",
                 params={"namespace": ns} if ns else {},
             )
 
         case "get_pods":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/k8s/pods",
+                http,
+                "get",
+                "/k8s/pods",
                 params={"namespace": ns} if ns else {},
             )
 
@@ -503,7 +615,9 @@ async def execute_tool(
         case "get_events":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/k8s/events",
+                http,
+                "get",
+                "/k8s/events",
                 params={"namespace": ns} if ns else {},
             )
 
@@ -513,14 +627,18 @@ async def execute_tool(
         case "detect_patterns":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/detection/patterns",
+                http,
+                "get",
+                "/detection/patterns",
                 params={"namespace": ns} if ns else {},
             )
 
         case "detect_correlations":
             ns = tool_input.get("namespace")
             result = await _call_api(
-                http, "get", "/detection/correlations",
+                http,
+                "get",
+                "/detection/correlations",
                 params={"namespace": ns} if ns else {},
             )
 
@@ -531,7 +649,9 @@ async def execute_tool(
 
         case "restart_pod":
             result = await _call_api(
-                http, "post", "/healing/restart-pod",
+                http,
+                "post",
+                "/healing/restart-pod",
                 params={
                     "namespace": tool_input["namespace"],
                     "pod_name": tool_input["pod_name"],
@@ -541,7 +661,9 @@ async def execute_tool(
 
         case "delete_failed_pods":
             result = await _call_api(
-                http, "post", "/healing/delete-failed-pods",
+                http,
+                "post",
+                "/healing/delete-failed-pods",
                 params={
                     "namespace": tool_input["namespace"],
                     "dry_run": str(tool_input.get("dry_run", False)).lower(),
@@ -550,7 +672,9 @@ async def execute_tool(
 
         case "scale_deployment":
             result = await _call_api(
-                http, "post", "/healing/scale-deployment",
+                http,
+                "post",
+                "/healing/scale-deployment",
                 params={
                     "namespace": tool_input["namespace"],
                     "deployment_name": tool_input["deployment_name"],
@@ -577,6 +701,95 @@ async def execute_tool(
             result = await _call_api(
                 http, "patch", f"/learning/problems/{problem_id}", json=tool_input
             )
+
+        # ── Alertmanager ─────────────────────────────────────────────────────
+
+        case "get_alerts":
+            am_url = os.environ.get("ALERTMANAGER_URL", "http://localhost:9093")
+            am_params: dict[str, Any] = {}
+            filters: list[str] = []
+            if state := tool_input.get("state"):
+                filters.append(f'alertstate="{state}"')
+            if severity := tool_input.get("severity"):
+                filters.append(f'severity="{severity}"')
+            if filters:
+                am_params["filter"] = ",".join(filters)
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as am_client:
+                    am_resp = await am_client.get(
+                        f"{am_url}/api/v2/alerts",
+                        params=am_params,
+                    )
+                    am_resp.raise_for_status()
+                    result = am_resp.json()
+            except httpx.TimeoutException:
+                result = {
+                    "error": "Alertmanager request timed out",
+                    "hint": "Is ALERTMANAGER_URL set and Alertmanager reachable?",
+                }
+            except Exception as exc:  # noqa: BLE001
+                result = {
+                    "error": str(exc),
+                    "hint": "Set ALERTMANAGER_URL=http://alertmanager:9093",
+                }
+
+        # ── Runbooks ──────────────────────────────────────────────────────────
+
+        case "list_runbooks":
+            from intelligent_sre_mcp.runbooks import (
+                list_runbooks as _list_runbooks,  # noqa: PLC0415
+            )
+
+            result = _list_runbooks()
+
+        case "execute_runbook":
+            from intelligent_sre_mcp.runbooks import get_runbook  # noqa: PLC0415
+
+            rb = get_runbook(tool_input["name"])
+            result = rb.to_dict() if rb else {"error": f"Runbook '{tool_input['name']}' not found"}
+
+        # ── GitHub Issues (post-mortem) ───────────────────────────────────────
+
+        case "create_github_issue":
+            gh_token = os.environ.get("GITHUB_TOKEN", "")
+            gh_repo = os.environ.get("GITHUB_REPO", "")
+            if not gh_token or not gh_repo:
+                result = {
+                    "error": "GITHUB_TOKEN and GITHUB_REPO environment variables are required",
+                    "hint": "Set GITHUB_REPO=owner/repo and GITHUB_TOKEN=ghp_...",
+                }
+            else:
+                gh_payload: dict[str, Any] = {
+                    "title": tool_input["title"],
+                    "body": tool_input["body"],
+                    "labels": tool_input.get("labels", ["incident", "post-mortem"]),
+                }
+                try:
+                    async with httpx.AsyncClient(timeout=15.0) as gh_client:
+                        gh_resp = await gh_client.post(
+                            f"https://api.github.com/repos/{gh_repo}/issues",
+                            json=gh_payload,
+                            headers={
+                                "Authorization": f"Bearer {gh_token}",
+                                "Accept": "application/vnd.github.v3+json",
+                                "X-GitHub-Api-Version": "2022-11-28",
+                            },
+                        )
+                        gh_resp.raise_for_status()
+                        gh_data = gh_resp.json()
+                        result = {
+                            "issue_number": gh_data["number"],
+                            "url": gh_data["html_url"],
+                            "title": gh_data["title"],
+                            "state": gh_data["state"],
+                        }
+                except httpx.HTTPStatusError as exc:
+                    result = {
+                        "error": f"GitHub API error: HTTP {exc.response.status_code}",
+                        "detail": exc.response.text[:400],
+                    }
+                except Exception as exc:  # noqa: BLE001
+                    result = {"error": str(exc)}
 
         case _:
             result = {"error": f"Unknown tool: {tool_name}"}

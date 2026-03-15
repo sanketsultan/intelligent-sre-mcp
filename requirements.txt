@@ -14,3 +14,4 @@ opentelemetry-instrumentation-fastapi>=0.49b0,<1
 opentelemetry-instrumentation-httpx>=0.49b0,<1
 psycopg2-binary>=2.9,<3
 python-dotenv>=1.0,<2
+discord.py>=2.3,<3
