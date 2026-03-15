@@ -136,10 +136,10 @@ async def _run_incident(
 ) -> None:
     """Create a thread, run the SRE agent, and stream the result back."""
     mode_label = "investigate + remediate" if remediate else "investigate"
-    header_emoji = "⚕️" if remediate else "🔍"
+    mode_prefix = "[remediate]" if remediate else "[investigate]"
 
     # ── Create a thread on the triggering message for clean isolation ────────
-    thread_name = f"{header_emoji} {prompt[:80]}"
+    thread_name = f"{mode_prefix} {prompt[:80]}"
     try:
         thread: discord.abc.Messageable = await ctx.message.create_thread(
             name=thread_name,
@@ -150,9 +150,9 @@ async def _run_incident(
         thread = ctx.channel  # type: ignore[assignment]
 
     await thread.send(
-        f"{header_emoji} **SRE Agent — {mode_label.title()} Mode**\n"
+        f"**SRE Agent — {mode_label.title()} Mode**\n"
         f"> {prompt}\n"
-        f"⏳ Running… this may take 30–60 seconds."
+        f"Running... this may take 30-60 seconds."
     )
 
     # ── Keep typing indicator alive while the agent works ────────────────────
@@ -170,22 +170,21 @@ async def _run_incident(
         await asyncio.shield(typing_task)  # let it finish cleanly
 
         if not result:
-            await thread.send("⚠️ Agent returned an empty response.")
+            await thread.send("WARNING: Agent returned an empty response.")
             return
 
-        done_emoji = "✅" if remediate else "🔎"
-        await thread.send(f"{done_emoji} **Agent Response:**")
+        await thread.send("**Agent Response:**")
         await _send_long(thread, result)
 
     except ValueError as exc:
         # Raised when ANTHROPIC_API_KEY is missing
         stop_typing.set()
-        await thread.send(f"❌ **Configuration error:** {exc}")
+        await thread.send(f"ERROR (configuration): {exc}")
 
     except Exception as exc:  # noqa: BLE001
         stop_typing.set()
         logger.exception("SRE agent error for prompt=%r", prompt)
-        await thread.send(f"❌ **Unexpected error:** {exc}")
+        await thread.send(f"ERROR: {exc}")
 
     finally:
         typing_task.cancel()
@@ -222,7 +221,7 @@ async def on_message(message: discord.Message) -> None:
 
         if not content:
             await message.channel.send(
-                f"👋 Mention me with a prompt to start an investigation.\n"
+                f"Mention me with a prompt to start an investigation.\n"
                 f"Example: `@{bot.user.display_name} High 5xx error rate on checkout`\n"
                 f"Or use `!sre help` for all commands."
             )
@@ -246,10 +245,10 @@ async def on_command_error(ctx: commands.Context, error: Exception) -> None:
     if isinstance(error, commands.CommandNotFound):
         return  # silently ignore — avoids spam on unrelated ! messages
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"⚠️ Missing argument: `{error.param.name}`. Try `!sre help`.")
+        await ctx.send(f"Missing argument: `{error.param.name}`. Try `!sre help`.")
     else:
         logger.exception("Discord command error", exc_info=error)
-        await ctx.send(f"❌ Error: {error}")
+        await ctx.send(f"Error: {error}")
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +276,7 @@ async def sre_group(ctx: commands.Context, *, prompt: str | None = None) -> None
         prompt = prompt[len("--remediate") :].strip()
 
     if not prompt:
-        await ctx.send("⚠️ Please provide an incident description after `--remediate`.")
+        await ctx.send("Please provide an incident description after `--remediate`.")
         return
 
     await _run_incident(ctx, prompt, remediate=remediate)
@@ -298,7 +297,7 @@ async def sre_runbooks_cmd(ctx: commands.Context) -> None:
     runbooks = list_runbooks()
 
     embed = discord.Embed(
-        title="📚 SRE Runbooks",
+        title="SRE Runbooks",
         description="Structured playbooks for common production incidents.",
         color=discord.Color.green(),
     )
@@ -319,7 +318,7 @@ async def sre_runbooks_cmd(ctx: commands.Context) -> None:
 async def sre_help_cmd(ctx: commands.Context) -> None:
     """Show usage information."""
     embed = discord.Embed(
-        title="🔧 SRE Bot — Help",
+        title="SRE Bot — Help",
         description=(
             "AI-powered incident response agent backed by Claude claude-opus-4-6.\n"
             "Integrates with Prometheus, Alertmanager, Kubernetes, and GitHub Issues."
