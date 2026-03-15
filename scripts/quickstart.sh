@@ -18,10 +18,7 @@ warn()    { echo "WARN $1"; }
 case "$MODE" in
   dev)
     info "Starting full stack via Docker Compose"
-    if [ ! -f "$PROJECT_DIR/.env" ]; then
-      cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
-      warn ".env created from .env.example — set ANTHROPIC_API_KEY before using the SRE agent"
-    fi
+    bash "$PROJECT_DIR/scripts/setup-env.sh"
     cd "$PROJECT_DIR"
     docker compose up -d
     success "Stack is up"

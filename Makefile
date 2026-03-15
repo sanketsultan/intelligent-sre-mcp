@@ -23,7 +23,7 @@ help:
 	@echo "intelligent-sre-mcp — development targets"
 	@echo ""
 	@echo "  Local (Docker Compose — no K8s required):"
-	@echo "    make env          Copy .env.example to .env (first-time only)"
+	@echo "    make env          Auto-fill .env with all defaults (safe to re-run)"
 	@echo "    make dev          Start full stack (API + Postgres + Prometheus + Grafana)"
 	@echo "    make dev-build    Rebuild Docker image then start"
 	@echo "    make dev-down     Stop and remove containers"
@@ -46,13 +46,7 @@ help:
 # ---------------------------------------------------------------------------
 .PHONY: env
 env:
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo ".env created from .env.example"; \
-		echo "Edit .env and set ANTHROPIC_API_KEY before running 'make dev'"; \
-	else \
-		echo ".env already exists, skipping"; \
-	fi
+	@bash scripts/setup-env.sh
 
 # ---------------------------------------------------------------------------
 # Docker Compose (local — no K8s required)
