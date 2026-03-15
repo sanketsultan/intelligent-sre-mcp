@@ -9,20 +9,48 @@ AI-powered SRE platform exposing MCP tools for autonomous incident detection, tr
 - **CI**: `.github/workflows/ci.yml` — ruff, pytest, docker build, kubeconform, tflint, checkov
 
 ## Key files
-- `src/intelligent_sre_mcp/api_server.py` — FastAPI app, structured JSON logging
+- `src/intelligent_sre_mcp/api_server.py` — FastAPI app, structured JSON logging, Alertmanager webhook + alert history
 - `src/intelligent_sre_mcp/server.py` — MCP stdio server entry point
+- `src/intelligent_sre_mcp/sre_agent.py` — Claude-powered SRE incident response agent
+- `src/intelligent_sre_mcp/alert_store.py` — Alert persistence (alerts table, investigation + remediation summaries)
+- `src/intelligent_sre_mcp/runbooks.py` — structured runbooks (DB pool, latency, error rates)
+- `src/intelligent_sre_mcp/bot/slack_bot.py` — Slack bot (Socket Mode, /sre slash command, @mention)
 - `k8s/kustomization.yaml` — single entry point for all K8s resources
 - `terraform/environments/aws/main.tf` — top-level AWS environment
 
 ## Dev commands
 ```bash
 docker compose up          # run full stack locally
-pytest tests/unit/              # run tests
+pytest tests/unit/         # run tests
 ruff check src/            # lint
 ruff format src/           # format
 terraform fmt -recursive terraform/
 tflint --chdir terraform/modules/eks
 checkov -d terraform/ --framework terraform --compact --quiet
+
+# Run the SRE agent (requires ANTHROPIC_API_KEY and API_URL pointing to a running stack)
+python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+# Or use the convenience script:
+./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
+
+# Run the Slack bot (requires SLACK_BOT_TOKEN + SLACK_APP_TOKEN + ANTHROPIC_API_KEY)
+python -m intelligent_sre_mcp.bot.slack_bot
+# Or use the convenience script:
+./scripts/run-slack-bot.sh
+
+# Slack bot commands:
+#   /sre <prompt>                — investigate only (read-only)
+#   /sre remediate <prompt>      — investigate + heal
+#   /sre runbooks                — list structured runbooks
+#   /sre help                    — show help
+#   @SRE-Bot <prompt>            — mention shortcut for investigate
+#   @SRE-Bot --remediate <prompt>— mention shortcut for remediate
+
+# Alertmanager webhook (fires on every alert; saves to DB + runs agent investigation):
+#   POST http://localhost:30080/alertmanager/webhook
+#   GET  http://localhost:30080/alerts           — list all saved alerts
+#   GET  http://localhost:30080/alerts/<id>      — single alert with investigation
 ```
 
 ## Slash commands
@@ -38,3 +66,4 @@ checkov -d terraform/ --framework terraform --compact --quiet
 - K8s: base/ + overlays/dev (local) + overlays/prod; entry: kubectl apply -k k8s/overlays/dev
 - Commits: conventional commits (`feat:`, `fix:`, `chore:`)
 - Branch: `claude/sharp-davinci` → PR to `master`
+- No emojis anywhere — not in code, comments, docstrings, commit messages, PR descriptions, or bot responses

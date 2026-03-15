@@ -8,6 +8,12 @@ namespace: intelligent-sre
 resources:
   - ../../base
 
+# Image tag is injected by CI:
+#   kustomize edit set image ghcr.io/sanketsultan/intelligent-sre-mcp=ghcr.io/sanketsultan/intelligent-sre-mcp:<tag>
+images:
+  - name: ghcr.io/sanketsultan/intelligent-sre-mcp
+    newTag: latest
+
 # Add prod patches here, e.g.:
 # patches:
 #   - path: patches/replica-count.yaml
