@@ -29,8 +29,19 @@ tflint --chdir terraform/modules/eks
 checkov -d terraform/ --framework terraform --compact --quiet
 
 # Run the SRE agent (requires ANTHROPIC_API_KEY and API_URL pointing to a running stack)
+#
+# Model selection — controls cost vs capability (default: haiku):
+#   haiku   claude-haiku-4-5   ~$0.001/run   routine health checks        (default)
+#   sonnet  claude-sonnet-4-5  ~$0.05/run    complex incidents
+#   opus    claude-opus-4-6    ~$0.10/run    critical production incidents
+#
+# Set once via env var to avoid typing --model every time:
+#   export SRE_MODEL=sonnet
+#
 python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
-python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+python -m intelligent_sre_mcp.sre_agent --model sonnet "High 5xx error rate on checkout service"
+python -m intelligent_sre_mcp.sre_agent --model sonnet --remediate "Pods are CrashLoopBackOff in production"
+python -m intelligent_sre_mcp.sre_agent --model opus "Database down, 100% error rate"
 # Or use the convenience script:
 ./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
 

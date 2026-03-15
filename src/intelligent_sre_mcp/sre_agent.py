@@ -932,21 +932,43 @@ def main() -> None:
         description="SRE Incident Response Agent — powered by Claude",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
+Model cost comparison (per million tokens, 2025 pricing):
+  haiku   claude-haiku-4-5   $0.25 input / $1.25 output   cheapest, fast   (default)
+  sonnet  claude-sonnet-4-5  $3.00 input / $15.00 output  balanced
+  opus    claude-opus-4-6    $15.00 input / $75.00 output  most capable
+
+Typical cost per investigation run:
+  haiku  ~$0.001   (recommended for routine health checks)
+  sonnet ~$0.05    (recommended for complex incidents)
+  opus   ~$0.10    (use for critical production incidents)
+
+Set SRE_MODEL env var to avoid typing --model every time:
+  export SRE_MODEL=sonnet
+
 Examples:
-  # Investigate current system health (safe — no changes)
+  # Routine health check — haiku (default, cheapest)
   python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
 
-  # Investigate a specific incident
-  python -m intelligent_sre_mcp.sre_agent "High 5xx error rate on the api service since 10 min"
+  # Specific incident — sonnet for better reasoning
+  python -m intelligent_sre_mcp.sre_agent --model sonnet \\
+      "High 5xx error rate on the api service since 10 min"
 
-  # Investigate AND remediate
-  python -m intelligent_sre_mcp.sre_agent --remediate \\
+  # Investigate AND remediate — sonnet recommended
+  python -m intelligent_sre_mcp.sre_agent --model sonnet --remediate \\
       "Pods are CrashLoopBackOff in the intelligent-sre namespace"
+
+  # Critical incident — opus for maximum capability
+  python -m intelligent_sre_mcp.sre_agent --model opus \\
+      "Database connection pool exhausted, 100% error rate"
 
   # Point to a custom cluster
   python -m intelligent_sre_mcp.sre_agent \\
       --api-url http://my-cluster-nodeport:30080 \\
       "Check health"
+
+  # Persistent model selection via env var
+  export SRE_MODEL=sonnet
+  python -m intelligent_sre_mcp.sre_agent "Investigate latency spike"
 """,
     )
     parser.add_argument(
