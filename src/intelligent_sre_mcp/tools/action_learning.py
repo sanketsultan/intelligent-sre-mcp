@@ -29,7 +29,13 @@ class ActionOutcome:
 
 class ActionHistoryStore:
     def __init__(self, db_path: Optional[str] = None) -> None:
-        self.db_path = db_path or os.getenv("ACTION_HISTORY_DB", "/tmp/intelligent_sre_actions.db")
+        # os.getenv returns "" (falsy) when the var is set to empty string (e.g. dev override).
+        # Treat empty string the same as unset so we always fall back to a real file path.
+        self.db_path = (
+            db_path
+            or os.getenv("ACTION_HISTORY_DB")
+            or "/tmp/intelligent_sre_actions.db"
+        )
         self.is_postgres = self._is_postgres_url(self.db_path)
         self.placeholder = "%s" if self.is_postgres else "?"
         if not self.is_postgres:
