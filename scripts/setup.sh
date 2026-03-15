@@ -12,6 +12,30 @@ error()   { echo "ERR $1" >&2; }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
+# Find Python 3.10+ (required by this package)
+find_python() {
+  for cmd in python3.13 python3.12 python3.11 python3.10; do
+    if command_exists "$cmd"; then
+      echo "$cmd"
+      return 0
+    fi
+  done
+  # Fall back to python3 and check version
+  if command_exists python3; then
+    local ver
+    ver=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+    local major minor
+    major=$(echo "$ver" | cut -d. -f1)
+    minor=$(echo "$ver" | cut -d. -f2)
+    if [ "$major" -ge 3 ] && [ "$minor" -ge 10 ]; then
+      echo "python3"
+      return 0
+    fi
+  fi
+  error "Python 3.10+ is required. Install python3.10, 3.11, 3.12, or 3.13."
+  return 1
+}
+
 wait_for_pods() {
   local namespace=$1
   local max_wait=300
@@ -45,13 +69,15 @@ echo ""
 
 # --- Prerequisites ---
 info "Checking prerequisites"
-for cmd in kubectl docker python3; do
+for cmd in kubectl docker; do
   if ! command_exists "$cmd"; then
     error "$cmd is required but not installed"
     exit 1
   fi
   success "$cmd found"
 done
+PYTHON_CMD=$(find_python) || exit 1
+success "$PYTHON_CMD found ($($PYTHON_CMD --version 2>&1))"
 
 if ! kubectl cluster-info >/dev/null 2>&1; then
   error "Cannot reach Kubernetes cluster. Ensure kubectl is configured and the cluster is running."
@@ -94,15 +120,31 @@ for url_label in \
 done
 echo ""
 
-# --- Python venv (optional) ---
+# --- Python venv ---
 info "Setting up Python virtual environment"
 if [ ! -d ".venv" ]; then
-  python3 -m venv .venv
+  "$PYTHON_CMD" -m venv .venv
   .venv/bin/python -m pip install -q --upgrade pip setuptools wheel
   .venv/bin/python -m pip install -q -r requirements.txt
-  success "Virtual environment created at .venv/"
+  .venv/bin/python -m pip install -q -e .
+  success "Virtual environment created at .venv/ ($(python3 --version 2>&1 | head -1))"
 else
-  success "Virtual environment already exists at .venv/"
+  # Recreate if the venv Python is too old (< 3.10)
+  venv_minor=$(.venv/bin/python -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
+  venv_major=$(.venv/bin/python -c "import sys; print(sys.version_info.major)" 2>/dev/null || echo "0")
+  if [ "$venv_major" -lt 3 ] || { [ "$venv_major" -eq 3 ] && [ "$venv_minor" -lt 10 ]; }; then
+    warn "Existing venv uses Python $venv_major.$venv_minor (need 3.10+). Recreating..."
+    "$PYTHON_CMD" -m venv --clear .venv
+    .venv/bin/python -m pip install -q --upgrade pip setuptools wheel
+    .venv/bin/python -m pip install -q -r requirements.txt
+    .venv/bin/python -m pip install -q -e .
+    success "Virtual environment recreated with $PYTHON_CMD"
+  elif ! .venv/bin/python -c "import intelligent_sre_mcp" 2>/dev/null; then
+    .venv/bin/python -m pip install -q -e .
+    success "Package installed into existing venv"
+  else
+    success "Virtual environment already up to date at .venv/"
+  fi
 fi
 echo ""
 
