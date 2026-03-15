@@ -1,1 +1,1 @@
-"""Discord SRE Bot package."""
+"""Slack SRE Bot package."""

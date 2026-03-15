@@ -3,11 +3,11 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from kubernetes import client
 
 # OpenTelemetry imports
@@ -24,6 +24,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 from pydantic import BaseModel
 
+from intelligent_sre_mcp.alert_store import AlertStore
 from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, set_current_problem_id
 from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
 from intelligent_sre_mcp.tools.correlation import CorrelationEngine
@@ -76,6 +77,9 @@ TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://otel-collector:4317")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "intelligent-sre-mcp")
 ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
+API_URL = os.getenv("API_URL", "http://localhost:30080")
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
+SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "")
 
 app = FastAPI(title="Intelligent SRE MCP API", version="0.1.0")
 
@@ -89,6 +93,7 @@ correlation_engine = CorrelationEngine(PROM_URL)
 
 # Initialize Phase 3: Self-Healing Actions
 action_store = ActionHistoryStore()
+alert_store = AlertStore()
 
 healing_actions = HealingActions(
     core_api=client.CoreV1Api(),
@@ -233,6 +238,37 @@ class ActionOutcomeRequest(BaseModel):
     outcome: str
     resolution_time_seconds: Optional[float] = None
     notes: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Alertmanager webhook payload models
+# ---------------------------------------------------------------------------
+
+
+class AlertmanagerAlert(BaseModel):
+    """Single alert inside an Alertmanager webhook POST body."""
+
+    status: str  # firing | resolved
+    labels: Dict[str, Any] = {}
+    annotations: Dict[str, Any] = {}
+    startsAt: Optional[str] = None
+    endsAt: Optional[str] = None
+    generatorURL: Optional[str] = None
+    fingerprint: Optional[str] = None
+
+
+class AlertmanagerWebhook(BaseModel):
+    """Alertmanager v4 webhook payload."""
+
+    version: Optional[str] = None
+    groupKey: Optional[str] = None
+    status: Optional[str] = None
+    receiver: Optional[str] = None
+    groupLabels: Dict[str, Any] = {}
+    commonLabels: Dict[str, Any] = {}
+    commonAnnotations: Dict[str, Any] = {}
+    externalURL: Optional[str] = None
+    alerts: List[AlertmanagerAlert] = []
 
 
 def prom_query_instant(query: str) -> dict:
@@ -629,6 +665,170 @@ def record_action_outcome(request: ActionOutcomeRequest):
         resolution_time_seconds=request.resolution_time_seconds,
         notes=request.notes,
     )
+
+
+# ============================================================
+# Alertmanager Webhook + Alert History
+# ============================================================
+
+
+async def _post_slack_notification(text: str) -> None:
+    """Send a plain-text message to Slack via the Web API (best-effort)."""
+    if not SLACK_BOT_TOKEN or not SLACK_CHANNEL:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                "https://slack.com/api/chat.postMessage",
+                headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
+                json={"channel": SLACK_CHANNEL, "text": text},
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Slack notification failed", extra={"error": str(exc)})
+
+
+async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> None:
+    """Background task: run the SRE agent for a firing alert and persist results.
+
+    Phase 1 (always) — investigation + root-cause analysis + pod-log review.
+    Phase 2 (critical only) — attempt automated remediation.
+    """
+    # Lazy import avoids circular dependency at module load time
+    from intelligent_sre_mcp.sre_agent import run_sre_agent  # noqa: PLC0415
+
+    try:
+        investigation = await run_sre_agent(prompt, remediate=False, api_base=API_URL)
+        alert_store.update_investigation(
+            alert_id, investigation or "No investigation output returned."
+        )
+        logger.info(
+            "Alert investigation complete",
+            extra={"alert_id": alert_id, "is_critical": is_critical},
+        )
+
+        if is_critical:
+            remediation = await run_sre_agent(prompt, remediate=True, api_base=API_URL)
+            alert_store.update_remediation(
+                alert_id, remediation or "No remediation output returned."
+            )
+            logger.info("Alert remediation complete", extra={"alert_id": alert_id})
+
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Alert investigation failed",
+            extra={"alert_id": alert_id, "error": str(exc)},
+        )
+        alert_store.update_investigation(
+            alert_id,
+            f"Investigation failed: {exc}",
+        )
+
+
+@app.post("/alertmanager/webhook", status_code=202)
+async def alertmanager_webhook(
+    payload: AlertmanagerWebhook,
+    background_tasks: BackgroundTasks,
+) -> Dict[str, Any]:
+    """Receive Alertmanager webhook POSTs.
+
+    For every *firing* alert:
+    1. Persist the alert to the database.
+    2. Create (or reuse) a problem record.
+    3. Post an optional Slack notification.
+    4. Schedule a background SRE agent investigation.
+
+    Returns 202 Accepted immediately so Alertmanager does not time out.
+    """
+    saved_ids: List[int] = []
+
+    for alert in payload.alerts:
+        if alert.status != "firing":
+            continue  # ignore resolved alerts (no investigation needed)
+
+        alert_name = alert.labels.get("alertname", "UnknownAlert")
+        severity = alert.labels.get("severity", "")
+        namespace = alert.labels.get("namespace", "")
+        summary = alert.annotations.get("summary", alert_name)
+
+        # Upsert a problem record so the alert is linked to the learning store
+        fingerprint = alert.fingerprint or f"{alert_name}:{namespace}:{severity}"
+        problem_id = action_store.get_or_create_problem(
+            title=alert_name,
+            fingerprint=fingerprint,
+            namespace=namespace or None,
+            severity=severity or None,
+            summary=summary or None,
+        )
+
+        alert_id = alert_store.save_alert(
+            alert_name=alert_name,
+            status=alert.status,
+            labels=alert.labels,
+            annotations=alert.annotations,
+            starts_at=alert.startsAt,
+            ends_at=alert.endsAt,
+            problem_id=problem_id,
+        )
+        saved_ids.append(alert_id)
+
+        # Build a natural-language prompt for the SRE agent
+        description = alert.annotations.get("description", "")
+        agent_prompt = (
+            f"ALERT FIRED: {alert_name}\n"
+            f"Severity: {severity or 'unknown'}\n"
+            f"Namespace: {namespace or 'unknown'}\n"
+            f"Summary: {summary}\n"
+        )
+        if description:
+            agent_prompt += f"Description: {description}\n"
+
+        is_critical = severity.lower() == "critical"
+
+        # Notify Slack (best-effort, does not block the response)
+        slack_text = (
+            f"[ALERT] *{alert_name}* | severity: {severity or 'unknown'} | "
+            f"namespace: {namespace or 'unknown'}\n{summary}"
+        )
+        background_tasks.add_task(_post_slack_notification, slack_text)
+
+        # Schedule the SRE agent investigation
+        background_tasks.add_task(_investigate_alert, alert_id, agent_prompt, is_critical)
+
+        logger.info(
+            "Alert received and queued for investigation",
+            extra={
+                "alert_name": alert_name,
+                "severity": severity,
+                "alert_id": alert_id,
+                "problem_id": problem_id,
+            },
+        )
+
+    return {
+        "status": "accepted",
+        "firing_alerts_received": len(saved_ids),
+        "alert_ids": saved_ids,
+    }
+
+
+@app.get("/alerts")
+def list_alerts(limit: int = 50, status: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List persisted alerts (most recent first).
+
+    Query params:
+      limit  — max rows (default 50)
+      status — filter by status: firing | resolved (optional)
+    """
+    return alert_store.list_alerts(limit=limit, status=status)
+
+
+@app.get("/alerts/{alert_id}")
+def get_alert(alert_id: int) -> Dict[str, Any]:
+    """Retrieve a single alert with its investigation and remediation summaries."""
+    alert = alert_store.get_alert(alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+    return alert
 
 
 if __name__ == "__main__":
