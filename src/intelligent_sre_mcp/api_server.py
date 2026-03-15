@@ -25,6 +25,8 @@ from opentelemetry.semconv.resource import ResourceAttributes
 from pydantic import BaseModel
 
 from intelligent_sre_mcp.alert_store import AlertStore
+from intelligent_sre_mcp.remediation_engine import RemediationEngine, list_playbooks
+from intelligent_sre_mcp.remediation_store import RemediationStore
 from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, set_current_problem_id
 from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
 from intelligent_sre_mcp.tools.correlation import CorrelationEngine
@@ -94,12 +96,20 @@ correlation_engine = CorrelationEngine(PROM_URL)
 # Initialize Phase 3: Self-Healing Actions
 action_store = ActionHistoryStore()
 alert_store = AlertStore()
+remediation_store = RemediationStore()
 
 healing_actions = HealingActions(
     core_api=client.CoreV1Api(),
     apps_api=client.AppsV1Api(),
     policy_api=client.PolicyV1Api(),
     action_store=action_store,
+)
+
+# Initialize the auto-remediation engine (notify_callback wired in at module level)
+remediation_engine = RemediationEngine(
+    k8s_tools=k8s_tools,
+    healing_actions=healing_actions,
+    store=remediation_store,
 )
 
 
@@ -829,6 +839,75 @@ def get_alert(alert_id: int) -> Dict[str, Any]:
     if alert is None:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     return alert
+
+
+# ============================================================
+# Auto-Remediation Playbook Endpoints
+# ============================================================
+
+
+class RemediationRunRequest(BaseModel):
+    """Request body for POST /remediation/run."""
+
+    namespace: Optional[str] = None
+    dry_run: bool = False
+
+
+@app.post("/remediation/run")
+def run_remediation(request: RemediationRunRequest) -> Dict[str, Any]:
+    """Trigger an auto-remediation cycle.
+
+    Scans the cluster (or a single namespace) for failing pods and unhealthy
+    nodes, matches each issue to a pre-approved playbook, scores confidence,
+    and executes fixes when confidence >= 80%.  Issues below the threshold are
+    flagged for human review.
+
+    Body (optional JSON):
+      namespace — limit scan to one namespace (default: all namespaces)
+      dry_run   — report what *would* happen without changing anything
+    """
+    # Wire the Slack notify callback so deferred issues post to #sre-alerts
+    import asyncio  # noqa: PLC0415
+
+    def _notify_sync(text: str) -> None:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(_post_slack_notification(text))
+            else:
+                loop.run_until_complete(_post_slack_notification(text))
+        except Exception:  # noqa: BLE001
+            pass
+
+    remediation_engine._notify = _notify_sync  # type: ignore[assignment]
+
+    report = remediation_engine.run(
+        namespace=request.namespace,
+        dry_run=request.dry_run,
+    )
+    return report.to_dict()
+
+
+@app.get("/remediation/history")
+def get_remediation_history(
+    limit: int = 50,
+    outcome: Optional[str] = None,
+    issue_type: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """List past auto-remediation runs, most recent first.
+
+    Query params:
+      limit       — max rows (default 50)
+      outcome     — filter by outcome: executed | deferred_to_human | dry_run | failed
+      issue_type  — filter by issue type: CrashLoopBackOff | OOMKilled | ...
+    """
+    return remediation_store.list_runs(limit=limit, outcome=outcome, issue_type=issue_type)
+
+
+@app.get("/remediation/playbooks")
+def get_remediation_playbooks() -> List[Dict[str, Any]]:
+    """List all pre-approved remediation playbooks with their confidence thresholds."""
+    return list_playbooks()
 
 
 if __name__ == "__main__":
