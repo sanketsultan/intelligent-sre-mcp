@@ -4,3 +4,12 @@ metadata:
   name: intelligent-sre
   labels:
     app: intelligent-sre-mcp
+    # Pod Security Standards — CIS Kubernetes Benchmark "restricted" profile.
+    # Requires: runAsNonRoot, no privilege escalation, seccompProfile RuntimeDefault,
+    # drop ALL capabilities. All deployments in this repo already comply.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest

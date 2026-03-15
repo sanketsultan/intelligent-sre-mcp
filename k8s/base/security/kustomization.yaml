@@ -1,19 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources:
-  - pod-security.yaml
-  - gatekeeper/install.yaml
-  - gatekeeper/templates/require-labels.yaml
-  - gatekeeper/templates/no-latest-tag.yaml
-  - gatekeeper/templates/require-resources.yaml
-  - gatekeeper/templates/require-non-root.yaml
-  - gatekeeper/constraints/require-labels.yaml
-  - gatekeeper/constraints/no-latest-tag.yaml
-  - gatekeeper/constraints/require-resources.yaml
-  - gatekeeper/constraints/require-non-root.yaml
-  # Falco runs in its own namespace; apply separately:
-  #   kubectl apply -k k8s/base/security/falco/
-  # - falco/falco.yaml
-  # - falco/falco-config.yaml
-  # - falco/falco-rules.yaml
-  # - falco/falco-sidekick.yaml
+# Gatekeeper and Falco are cluster-level components that manage their own
+# namespaces and CRDs.  They must be installed separately so the global
+# "namespace: intelligent-sre" transformation in the base kustomization does
+# not corrupt their cluster-scoped resources.
+#
+# Install Gatekeeper (one-time, cluster-admin required):
+#   kubectl apply -k k8s/base/security/gatekeeper/
+#
+# Install Falco (one-time, DaemonSet, requires privileged):
+#   kubectl apply -k k8s/base/security/falco/
+resources: []

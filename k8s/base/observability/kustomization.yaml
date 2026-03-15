@@ -3,9 +3,10 @@ kind: Kustomization
 resources:
   - prometheus.yaml
   - alertmanager.yaml
-  - alert_rules.yaml
-  - slo-rules.yaml
-  - dora-rules.yaml
+  # slo-rules.yaml and dora-rules.yaml use monitoring.coreos.com/v1 PrometheusRule CRDs.
+  # Requires the Prometheus Operator.  Apply separately after installing the operator:
+  #   kubectl apply -f k8s/base/observability/slo-rules.yaml
+  #   kubectl apply -f k8s/base/observability/dora-rules.yaml
   - node-exporter.yaml
   - kube-state-metrics.yaml
   - otel-collector.yaml

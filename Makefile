@@ -29,11 +29,12 @@ help:
 	@echo "    make dev-down     Stop and remove containers"
 	@echo "    make dev-logs     Tail API container logs"
 	@echo ""
-	@echo "  Kubernetes:"
-	@echo "    make k8s          Deploy to local K8s (dev overlay)"
+	@echo "  Kubernetes (Docker Desktop / minikube):"
+	@echo "    make k8s          Build image + deploy full stack to local K8s"
 	@echo "    make k8s-prod     Deploy to production K8s (prod overlay)"
 	@echo "    make k8s-down     Delete dev overlay resources"
 	@echo "    make k8s-status   Show pod status in intelligent-sre namespace"
+	@echo "    make k8s-logs     Tail API pod logs"
 	@echo ""
 	@echo "  Quality:"
 	@echo "    make test         Run unit tests"
@@ -79,8 +80,7 @@ dev-logs:
 # ---------------------------------------------------------------------------
 .PHONY: k8s
 k8s:
-	kubectl apply -k $(K8S_DEV)
-	@echo "Deployed dev overlay. Check status: make k8s-status"
+	@bash scripts/setup.sh
 
 .PHONY: k8s-prod
 k8s-prod:
@@ -93,6 +93,10 @@ k8s-down:
 .PHONY: k8s-status
 k8s-status:
 	kubectl get pods -n intelligent-sre
+
+.PHONY: k8s-logs
+k8s-logs:
+	kubectl logs -n intelligent-sre -l app=intelligent-sre-mcp -f --tail=100
 
 # ---------------------------------------------------------------------------
 # Tests
