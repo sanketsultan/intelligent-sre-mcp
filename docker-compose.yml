@@ -38,7 +38,7 @@ services:
       ENABLE_TRACING: "${ENABLE_TRACING:-false}"
       REQUEST_TIMEOUT: "${REQUEST_TIMEOUT:-10}"
       SERVICE_NAME: "intelligent-sre-mcp"
-      ACTION_HISTORY_DB: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      ACTION_HISTORY_DB: "postgresql://${POSTGRES_USER:-sre}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-sre}"
     depends_on:
       postgres:
         condition: service_healthy
