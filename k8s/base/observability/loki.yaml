@@ -124,24 +124,27 @@ spec:
               drop: ["ALL"]
           resources:
             requests:
-              cpu:    50m
-              memory: 128Mi
+              cpu:    100m
+              memory: 256Mi
             limits:
-              cpu:    500m
-              memory: 512Mi
+              cpu:    "1"
+              memory: 1Gi
           livenessProbe:
             httpGet:
               path: /ready
               port: 3100
-            initialDelaySeconds: 45
-            periodSeconds:       15
-            timeoutSeconds:      5
+            initialDelaySeconds: 60
+            periodSeconds:       20
+            timeoutSeconds:      10
+            failureThreshold:    5
           readinessProbe:
             httpGet:
               path: /ready
               port: 3100
-            initialDelaySeconds: 15
-            periodSeconds:       10
+            initialDelaySeconds: 30
+            periodSeconds:       15
+            timeoutSeconds:      10
+            failureThreshold:    3
           volumeMounts:
             - name: config
               mountPath: /etc/loki
