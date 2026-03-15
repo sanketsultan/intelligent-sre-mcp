@@ -1,222 +1,236 @@
 # Intelligent SRE MCP
 
-> **Talk to your Kubernetes cluster through Claude Desktop.**  
-> Ask questions in plain English and get real-time insights from Prometheus, Grafana, and K8s.  
-> **NEW:** Claude can now **automatically heal** issues with built-in safety controls!  
-> **NEW:** Every action is **auto-correlated** and **audit-logged** to the database.
+AI-powered SRE platform exposing MCP tools for autonomous incident detection, triage, and healing.
 
-An intelligent SRE copilot that runs autonomously against your monitoring stack via the Model Context Protocol (MCP), with optional Claude Desktop integration.
+Talk to your Kubernetes cluster through Claude Desktop. Ask questions in plain English and get
+real-time insights from Prometheus, Grafana, and K8s. The platform detects issues, matches
+pre-approved playbooks, auto-remediates when confidence exceeds 80%, and defers to humans
+otherwise — with a full audit trail in PostgreSQL.
 
 ## What It Does
 
-- 🔍 **Detects anomalies** - CPU spikes, memory leaks, crash loops
-- 📊 **Analyzes patterns** - Recurring failures, resource exhaustion, cascading issues
-- 🔗 **Correlates signals** - Links metrics, events, and alerts for root cause analysis
-- 💯 **Calculates health scores** - 0-100 system health with recommendations
-- 🔧 **Self-healing actions** - Restart pods, scale deployments, rollback releases (NEW!)
-- 🤖 **Natural language queries** - "Is my system healthy?", "Fix that crashing pod"
+- Detects anomalies — CPU spikes, memory leaks, crash loops
+- Analyzes patterns — recurring failures, resource exhaustion, cascading issues
+- Correlates signals — links metrics, events, and alerts for root cause analysis
+- Calculates health scores — 0-100 system health with recommendations
+- Auto-remediates — restart pods, scale deployments, rollback releases, with confidence scoring
+- Natural language queries — "Is my system healthy?", "Run remediation in production namespace"
 
-**Example queries:**
-- "Detect anomalies in my cluster"
-- "What patterns do you see in pod failures?"
-- "Restart the api-server pod that keeps crashing"
-- "Scale up the frontend deployment to 5 replicas"
-- "Show me the healing action history"
+---
 
 ## Quick Start
 
-**Setup scripts now live in `setup/`:**
-
-```bash
-ls setup/
-```
-
-**One command for everything (K8s + Claude):**
+### Option A: Docker Compose (no Kubernetes required — recommended for local dev)
 
 ```bash
 git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
 cd intelligent-sre-mcp
-./setup/quickstart.sh all
+make dev
 ```
 
-This will:
-- ✓ Build and deploy to Kubernetes
-- ✓ Start Prometheus, Grafana, and monitoring stack
-- ✓ Configure Claude Desktop integration
-- ✓ Verify all services are running
+`make dev` copies `.env.example` to `.env` (first run only) then starts:
 
-**Only want Claude setup?**
-```bash
-./setup/quickstart.sh claude
-```
+| Service     | URL                        |
+|-------------|----------------------------|
+| API         | http://localhost:8080      |
+| Prometheus  | http://localhost:9090      |
+| Grafana     | http://localhost:3000      |
+| OTel        | http://localhost:4317 gRPC |
 
-**Only want Kubernetes setup?**
-```bash
-./setup/quickstart.sh k8s
-```
-
-**Docker-only (API container):**
-```bash
-./setup/quickstart.sh docker
-```
-
-**Test it:**
-```
-Ask Claude: "Show me all pods in the intelligent-sre namespace"
-```
-
-## Docker Image
-
-Pull the public image:
+Set `ANTHROPIC_API_KEY` in `.env` to enable the SRE agent and Slack bot.
 
 ```bash
-docker pull sanketsultan/intelligent-sre-mcp:latest
+make dev-logs     # tail API logs
+make dev-down     # stop everything
+make dev-build    # rebuild image + start
 ```
 
-Optional run (exposes API on port 30080):
+### Option B: Kubernetes
 
 ```bash
-docker run --rm -p 30080:8080 sanketsultan/intelligent-sre-mcp:latest
+make k8s          # deploy dev overlay  (kubectl apply -k k8s/overlays/dev)
+make k8s-prod     # deploy prod overlay (kubectl apply -k k8s/overlays/prod)
+make k8s-status   # show pod status
+make k8s-down     # delete dev resources
+```
+
+Or use the script directly:
+
+```bash
+./scripts/quickstart.sh dev    # Docker Compose (default)
+./scripts/quickstart.sh k8s    # Kubernetes
+./scripts/quickstart.sh local  # Python venv only
 ```
 
 ---
 
-## MCP Tools for Claude
+## All Make Targets
 
-Claude has access to these tools to query and manage your infrastructure:
-
-**Prometheus (3):** `prom_query`, `prom_query_range`, `prom_targets`  
-**Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`, `k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`  
-**Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`, `detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`  
-**Healing (9):** `restart_pod`, `delete_failed_pods`, `evict_pod_from_node`, `drain_node`, `scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history`
-**Learning (9):** `get_action_stats`, `get_recurring_issues`, `record_action_outcome`, `record_agent_activity`, `get_agent_activity`, `create_problem`, `update_problem`, `list_problems`, `list_tool_invocations` 🆕
+```
+make help        # list all targets
+make env         # copy .env.example to .env (first-time only)
+make dev         # docker compose up -d
+make dev-build   # rebuild image + start
+make dev-down    # docker compose down
+make dev-logs    # tail API container logs
+make k8s         # kubectl apply -k k8s/overlays/dev
+make k8s-prod    # kubectl apply -k k8s/overlays/prod
+make k8s-down    # kubectl delete -k k8s/overlays/dev
+make k8s-status  # kubectl get pods -n intelligent-sre
+make test        # pytest tests/unit/
+make lint        # ruff check + format (auto-fix)
+make tf-check    # terraform fmt + tflint + checkov
+```
 
 ---
 
-## Phase 5: Learning & Optimization
+## SRE Agent
 
-Track healing effectiveness, recurring issues, and outcomes.
+Requires `ANTHROPIC_API_KEY` in `.env` and a running API stack.
 
-**Example prompts:**
-- "Show healing action stats for the last 24 hours"
-- "List recurring issues in the last 24 hours"
-- "Record outcome for action ID 42 as success with 60s recovery"
-
-**Persist action history (optional):**
 ```bash
-export ACTION_HISTORY_DB=/path/to/intelligent_sre_actions.db
+# Investigate
+python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+
+# Investigate + auto-remediate
+python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+
+# Convenience script
+./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
 ```
 
-**Use Postgres for action history (recommended in K8s):**
+---
+
+## Auto-Remediation API
+
+| Endpoint                  | Method | Description                           |
+|---------------------------|--------|---------------------------------------|
+| `/remediation/run`        | POST   | Detect issues and run playbooks       |
+| `/remediation/history`    | GET    | Audit log of all remediation runs     |
+| `/remediation/playbooks`  | GET    | List all pre-approved playbooks       |
+
 ```bash
-export ACTION_HISTORY_DB=postgresql://sre:srepassword@postgres:5432/sre
+# Dry run — see what would happen without executing
+curl -s -X POST http://localhost:8080/remediation/run \
+  -H "Content-Type: application/json" \
+  -d '{"namespace": "production", "dry_run": true}' | jq .
+
+# View recent runs
+curl -s http://localhost:8080/remediation/history | jq .
 ```
 
-## Correlation & Audit Logging (Auto)
+Pre-approved playbooks: `crashloop_restart`, `oom_killed_scale`, `image_pull_rollback`,
+`pod_failed_cleanup`, `high_restart_restart`. Issues with confidence below 0.80 are deferred
+to a human via the configured Slack notify callback.
 
-We now **auto-correlate** every request, tool invocation, and healing action to a single **problem** record for auditability and model improvement.
+---
 
-**What gets captured**
-- **`problems`**: Canonical problem records with `fingerprint`, status, and timestamps.
-- **`tool_invocations`**: Every API/tool call with method, path, query/body, status, duration, and `problem_id`.
-- **`agent_activity`**: High-signal agent intent + inputs + action + outcome with `problem_id`.
-- **`healing_actions`**: All remediation actions with `problem_id`.
+## Slack Bot
 
-**How correlation works**
-- Each request creates or reuses a **problem** based on a stable `fingerprint`.
-- `problem_id` is propagated via request context and attached to all logs automatically.
-- You can override correlation per request with header **`X-Problem-Id`**.
-
-**Why this matters (staff-engineer view)**
-- **Auditability**: One thread of evidence per incident for compliance and RCA.
-- **Model improvement**: High-quality traces enable training signal without noise.
-- **Operational visibility**: See tool usage, success/failure, and outcomes by incident.
-
-**Operational guidance**
-- **Retention**: Add a scheduled job to purge old rows (e.g., 30–90 days).
-- **PII/Secrets**: Keep payload capture minimal; redact sensitive fields upstream.
-- **Performance**: These writes are lightweight; keep Postgres tuned and indexed.
-
-**Quick checks**
 ```bash
-kubectl exec -n intelligent-sre postgres-0 -- psql -U sre -d sre -c \
-"SELECT id, title, fingerprint, status FROM problems ORDER BY id DESC LIMIT 20;"
-```
-```bash
-kubectl exec -n intelligent-sre postgres-0 -- psql -U sre -d sre -c \
-"SELECT id, method, path, status_code, problem_id FROM tool_invocations ORDER BY id DESC LIMIT 20;"
+# Requires SLACK_BOT_TOKEN + SLACK_APP_TOKEN + ANTHROPIC_API_KEY in .env
+python -m intelligent_sre_mcp.bot.slack_bot
+# Or:
+./scripts/run-slack-bot.sh
 ```
 
-## Services
+Slack commands:
 
-Access these directly or through Claude:
+| Command                   | Action                    |
+|---------------------------|---------------------------|
+| `/sre <prompt>`           | Investigate (read-only)   |
+| `/sre remediate <prompt>` | Investigate and heal      |
+| `/sre runbooks`           | List structured runbooks  |
+| `/sre help`               | Show help                 |
+| `@SRE-Bot <prompt>`       | Mention shortcut          |
 
-- **Prometheus**: http://localhost:30090
-- **Grafana**: http://localhost:30300 (admin/admin)
-- **API**: http://localhost:30080
-- **AlertManager**: http://localhost:30093
-- **Jaeger**: http://localhost:30686
+---
+
+## Alertmanager Webhook
+
+```bash
+# Fires on every alert — saves to DB and runs background agent investigation
+POST http://localhost:8080/alertmanager/webhook
+
+# List all saved alerts
+GET  http://localhost:8080/alerts
+
+# Single alert with investigation summary
+GET  http://localhost:8080/alerts/<id>
+```
+
+---
+
+## MCP Tools
+
+**Prometheus (3):** `prom_query`, `prom_query_range`, `prom_targets`
+
+**Kubernetes (8):** `k8s_get_all_pods`, `k8s_get_failing_pods`, `k8s_get_pod_logs`,
+`k8s_describe_pod`, `k8s_get_nodes`, `k8s_get_deployment`, `k8s_get_events`, `k8s_watch_events`
+
+**Detection (6):** `detect_anomalies`, `get_health_score`, `detect_patterns`,
+`detect_correlations`, `comprehensive_analysis`, `detect_metric_spike`
+
+**Healing (9):** `restart_pod`, `delete_failed_pods`, `evict_pod_from_node`, `drain_node`,
+`scale_deployment`, `rollback_deployment`, `cordon_node`, `uncordon_node`, `get_healing_history`
+
+**Learning (9):** `get_action_stats`, `get_recurring_issues`, `record_action_outcome`,
+`record_agent_activity`, `get_agent_activity`, `create_problem`, `update_problem`,
+`list_problems`, `list_tool_invocations`
+
+---
+
+## Services (Kubernetes NodePort)
+
+| Service      | URL                       | Credentials         |
+|--------------|---------------------------|---------------------|
+| API          | http://localhost:30080    |                     |
+| Prometheus   | http://localhost:30090    |                     |
+| Grafana      | http://localhost:30300    | see .env            |
+| Alertmanager | http://localhost:30093    |                     |
+| Jaeger       | http://localhost:30686    |                     |
 
 ---
 
 ## Testing
 
-**Quick test everything:**
 ```bash
-./run_tests.sh
+make test               # run unit tests
+pytest tests/unit/ -v   # verbose
 ```
-
-**Recommended - End-to-End Test:**
-```bash
-./tests/test-e2e-with-claude.sh
-```
-Deploys test infrastructure, detects issues, lets you test with Claude, auto-cleans up. Perfect for demos!
-
-**See [tests/README.md](tests/README.md) for more options.**
 
 ---
 
 ## Troubleshooting
 
-**API not responding:**
+**API not responding (Docker Compose):**
+```bash
+make dev-logs
+docker compose ps
+```
+
+**API not responding (K8s):**
 ```bash
 kubectl get pods -n intelligent-sre
-curl http://localhost:30080/health
-```
-
-**Claude can't connect:**
-```bash
-killall Claude && open -a Claude
-cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-**Check logs:**
-```bash
 kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50
 ```
 
----
-
-## Cleanup
-
-```bash
-./cleanup.sh
-```
+**Remediation defers everything to human:**
+Check that `ANTHROPIC_API_KEY` and Slack tokens are set. Confidence below 0.80 always defers.
+Critical namespaces (`kube-system`, `cert-manager`, etc.) always defer regardless of confidence.
 
 ---
 
-## What's Inside
+## What Is Inside
 
-- **Monitoring Stack**: Prometheus, Grafana, AlertManager, Jaeger, OpenTelemetry
-- **Metrics Collection**: kube-state-metrics, Node Exporter, demo metrics
-- **Python API**: FastAPI server with 17 MCP tools
-- **Detection Engines**: Anomaly detection, pattern recognition, correlation analysis
-- **Test Suite**: Automated tests, interactive scenarios, E2E testing
-
-**See full documentation in project files.**
+- **Stack**: FastAPI + PostgreSQL + Prometheus + Grafana + OpenTelemetry + Alertmanager
+- **Infra**: Terraform modules for AWS EKS + RDS; Kubernetes manifests with Kustomize overlays
+- **Security**: OPA/Gatekeeper admission policies, Falco runtime rules, Pod Security Standards
+- **Observability**: SLO/error budget recording rules, DORA metric rules, Grafana dashboards
+- **CI**: GitHub Actions — ruff, pytest, docker build, kubeconform, tflint, checkov
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License**.
+MIT
