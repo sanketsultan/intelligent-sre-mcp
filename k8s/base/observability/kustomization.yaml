@@ -7,12 +7,16 @@ resources:
   # Requires the Prometheus Operator.  Apply separately after installing the operator:
   #   kubectl apply -f k8s/base/observability/slo-rules.yaml
   #   kubectl apply -f k8s/base/observability/dora-rules.yaml
-  - node-exporter.yaml
   - kube-state-metrics.yaml
   - otel-collector.yaml
   - jaeger.yaml
   - loki.yaml
-  - promtail.yaml
+  # node-exporter and promtail use hostNetwork/hostPID/hostPath which require the
+  # "privileged" Pod Security Standard.  They cannot run in the "restricted"
+  # intelligent-sre namespace.  Deploy them separately in a dedicated namespace:
+  #   kubectl apply -k k8s/base/observability/host-monitoring/
+  # - node-exporter.yaml
+  # - promtail.yaml
   - grafana.yaml
   - grafana-dashboards/slo-dashboard.yaml
   - grafana-dashboards/dora-dashboard.yaml

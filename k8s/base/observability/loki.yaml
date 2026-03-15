@@ -52,18 +52,16 @@ data:
       reject_old_samples_max_age:  168h   # 7 days
       ingestion_rate_mb:           16
       ingestion_burst_size_mb:     32
-      max_query_length:            0
       split_queries_by_interval:   15m
+      # Keep 30 days of logs
+      retention_period:            720h
 
     # Retention
     compactor:
       working_directory: /loki/compactor
       retention_enabled: true
       retention_delete_delay: 2h
-
-    limits_config_override:
-      # Keep 30 days of logs
-      retention_period: 720h
+      delete_request_store: filesystem
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

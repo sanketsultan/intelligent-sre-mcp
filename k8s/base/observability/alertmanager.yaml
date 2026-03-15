@@ -34,22 +34,42 @@ spec:
       labels:
         app: alertmanager
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: alertmanager
-          image: prom/alertmanager:latest
+          image: prom/alertmanager:v0.27.0
           args:
             - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
           ports:
             - containerPort: 9093
               name: web
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - name: alertmanager-config
               mountPath: /etc/alertmanager/alertmanager.yml
               subPath: alertmanager.yml
+            - name: alertmanager-storage
+              mountPath: /alertmanager
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 64Mi
             limits:
               cpu: 200m
               memory: 256Mi
@@ -57,3 +77,7 @@ spec:
         - name: alertmanager-config
           configMap:
             name: alertmanager-config
+        - name: alertmanager-storage
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
