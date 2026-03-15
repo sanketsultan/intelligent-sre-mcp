@@ -46,6 +46,34 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 
+      # Block the main container until Postgres is accepting connections.
+      # Uses pg_isready from the same postgres image to avoid adding new deps.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16.4-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -p 5432 -U "$POSTGRES_USER"; do
+                echo "waiting for postgres..."; sleep 2;
+              done
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-auth
+                  key: POSTGRES_USER
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+
       containers:
         - name: intelligent-sre-mcp
           image: intelligent-sre-mcp:latest

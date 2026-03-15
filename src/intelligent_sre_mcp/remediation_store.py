@@ -24,10 +24,14 @@ remediation_runs
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
@@ -50,7 +54,7 @@ class RemediationStore:
         self.placeholder = "%s" if self.is_postgres else "?"
         if not self.is_postgres:
             self._ensure_directory()
-        self._init_db()
+        self._init_db_with_retry()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -67,6 +71,29 @@ class RemediationStore:
                 raise RuntimeError("psycopg2 is required for PostgreSQL backend")
             return psycopg2.connect(self.db_path)
         return sqlite3.connect(self.db_path)
+
+    def _init_db_with_retry(self, max_attempts: int = 10, base_delay: float = 2.0) -> None:
+        """Initialise the database schema with exponential back-off.
+
+        Needed for Kubernetes startup where the Postgres pod may not be
+        accepting connections yet when the API pod starts.
+        """
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self._init_db()
+                return
+            except Exception as exc:
+                if attempt == max_attempts:
+                    raise
+                delay = base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    "DB init attempt %d/%d failed (%s); retrying in %.0fs",
+                    attempt,
+                    max_attempts,
+                    exc,
+                    delay,
+                )
+                time.sleep(delay)
 
     def _init_db(self) -> None:
         with self._connect() as conn:
