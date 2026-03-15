@@ -126,8 +126,9 @@ if [ ! -d ".venv" ]; then
   "$PYTHON_CMD" -m venv .venv
   .venv/bin/python -m pip install -q --upgrade pip setuptools wheel
   .venv/bin/python -m pip install -q -r requirements.txt
-  .venv/bin/python -m pip install -q -e .
-  success "Virtual environment created at .venv/ ($(python3 --version 2>&1 | head -1))"
+  # Use non-editable install: Homebrew Python 3.12 skips __editable__.*.pth files
+  .venv/bin/python -m pip install -q .
+  success "Virtual environment created at .venv/ ($("$PYTHON_CMD" --version 2>&1))"
 else
   # Recreate if the venv Python is too old (< 3.10)
   venv_minor=$(.venv/bin/python -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
@@ -137,10 +138,10 @@ else
     "$PYTHON_CMD" -m venv --clear .venv
     .venv/bin/python -m pip install -q --upgrade pip setuptools wheel
     .venv/bin/python -m pip install -q -r requirements.txt
-    .venv/bin/python -m pip install -q -e .
+    .venv/bin/python -m pip install -q .
     success "Virtual environment recreated with $PYTHON_CMD"
   elif ! .venv/bin/python -c "import intelligent_sre_mcp" 2>/dev/null; then
-    .venv/bin/python -m pip install -q -e .
+    .venv/bin/python -m pip install -q .
     success "Package installed into existing venv"
   else
     success "Virtual environment already up to date at .venv/"
