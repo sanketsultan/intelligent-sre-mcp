@@ -1,0 +1,51 @@
+---
+# pending-worker: simulates a misconfigured deployment that requests more CPU
+# than any node in the cluster can provide (100 cores on a single Docker Desktop node).
+# Result: Pod stays Pending forever — scheduler cannot find a node to place it on.
+# K8s event: "0/1 nodes are available: 1 Insufficient cpu."
+# Agent fix: identify the resource request is impossibly high, scale to 0.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pending-worker
+  namespace: intelligent-sre
+  labels:
+    app: pending-worker
+    chaos-test: "true"
+    failure-mode: pending-unschedulable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pending-worker
+  template:
+    metadata:
+      labels:
+        app: pending-worker
+        chaos-test: "true"
+        failure-mode: pending-unschedulable
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pending-worker
+          image: busybox:1.36
+          command: ["sh", "-c", "echo 'pending-worker: running'; sleep 3600"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              # Intentionally impossible: no single node has 100 CPU cores.
+              # This causes the scheduler to emit: "Insufficient cpu" and leave the pod Pending.
+              cpu: "100"
+              memory: 128Mi
+            limits:
+              cpu: "100"
+              memory: 256Mi

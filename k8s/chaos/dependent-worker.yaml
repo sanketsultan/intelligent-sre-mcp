@@ -1,0 +1,79 @@
+---
+# dependent-worker: simulates a service that depends on crash-worker being healthy.
+# The init container tries to reach crash-worker-svc before starting.
+# Because crash-worker keeps crashing, its Service has no ready endpoints,
+# so the init container times out and exits 1.
+# Result: Pod stuck in Init:Error — a cascading failure caused by crash-worker.
+# Agent fix: identify the upstream dependency failure, scale crash-worker to 0
+#            so the init container stops blocking, then scale dependent-worker to 0.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dependent-worker
+  namespace: intelligent-sre
+  labels:
+    app: dependent-worker
+    chaos-test: "true"
+    failure-mode: init-error-cascade
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dependent-worker
+  template:
+    metadata:
+      labels:
+        app: dependent-worker
+        chaos-test: "true"
+        failure-mode: init-error-cascade
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      # Init container: verify upstream (crash-worker-svc) is reachable before starting.
+      # Fails because crash-worker has no ready endpoints.
+      initContainers:
+        - name: wait-for-upstream
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "dependent-worker: checking upstream crash-worker-svc..."
+              wget -q --timeout=4 http://crash-worker-svc:8080 -O /dev/null
+              if [ $? -ne 0 ]; then
+                echo "dependent-worker: upstream is DOWN — aborting startup"
+                exit 1
+              fi
+              echo "dependent-worker: upstream is healthy"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      containers:
+        - name: dependent-worker
+          image: busybox:1.36
+          command: ["sh", "-c", "echo 'dependent-worker: running'; sleep 3600"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

@@ -64,6 +64,33 @@ python -m intelligent_sre_mcp.bot.slack_bot
 #   GET  http://localhost:30080/alerts/<id>      — single alert with investigation
 ```
 
+## Chaos / remediation test
+
+End-to-end test that deploys broken pods, triggers the automated pipeline, and verifies the agent remediates them:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+./scripts/test-remediation.sh
+
+# Keep chaos pods after test for manual inspection:
+SKIP_CLEANUP=1 ./scripts/test-remediation.sh
+
+# Deploy / teardown chaos pods manually:
+kubectl apply  -k k8s/chaos/
+kubectl delete -k k8s/chaos/
+```
+
+Failure modes simulated (`k8s/chaos/`):
+
+| Pod | Failure | Root cause |
+|---|---|---|
+| `crash-worker` | CrashLoopBackOff | container exits with code 1 |
+| `dependent-worker` | Init:Error | init container blocked by crash-worker being down (cascade) |
+| `pending-worker` | Pending | requests 100 CPU cores — impossible to schedule |
+| `sick-api` | Running/NotReady | readiness probe always fails (port not open) |
+
+Agent healing actions used: `delete_failed_pods`, `scale_deployment` (to 0).
+
 ## Slash commands
 - `/lint` — ruff check + format, auto-fix all issues
 - `/test` — run pytest, fix failures
