@@ -802,12 +802,30 @@ async def execute_tool(
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
+
+# Cost reference (per million tokens, as of 2025):
+#   claude-haiku-4-5   $0.25 input  / $1.25 output   (default — cheapest)
+#   claude-sonnet-4-5  $3.00 input  / $15.00 output  (better reasoning)
+#   claude-opus-4-6    $15.00 input / $75.00 output  (most capable, most expensive)
+SUPPORTED_MODELS = {
+    "haiku":  "claude-haiku-4-5",
+    "sonnet": "claude-sonnet-4-5",
+    "opus":   "claude-opus-4-6",
+    # also accept full model IDs directly
+    "claude-haiku-4-5":  "claude-haiku-4-5",
+    "claude-sonnet-4-5": "claude-sonnet-4-5",
+    "claude-opus-4-6":   "claude-opus-4-6",
+}
+
+
 async def run_sre_agent(
     prompt: str,
     *,
     remediate: bool = False,
     api_base: str = "http://localhost:30080",
     api_key: str | None = None,
+    model: str = DEFAULT_MODEL,
     verbose: bool = False,
 ) -> str:
     """
@@ -819,6 +837,8 @@ async def run_sre_agent(
                    If False (default), the agent runs in investigation-only mode.
         api_base:  Base URL of the intelligent-sre-mcp FastAPI server.
         api_key:   Anthropic API key (falls back to ANTHROPIC_API_KEY env var).
+        model:     Claude model to use. Accepts short aliases (haiku/sonnet/opus)
+                   or full model IDs. Defaults to SRE_MODEL env var or haiku.
         verbose:   If True, emit DEBUG logs.
 
     Returns:
@@ -832,7 +852,8 @@ async def run_sre_agent(
 
     tools = INVESTIGATION_TOOLS + (HEALING_TOOLS if remediate else [])
     mode = "investigate+remediate" if remediate else "investigate-only"
-    logger.info("SRE agent starting | mode=%s api=%s", mode, api_base)
+    resolved_model = SUPPORTED_MODELS.get(model, model)
+    logger.info("SRE agent starting | mode=%s model=%s api=%s", mode, resolved_model, api_base)
 
     resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not resolved_key:
@@ -849,9 +870,8 @@ async def run_sre_agent(
         while True:
             # Stream the response so text appears incrementally
             async with claude.messages.stream(
-                model="claude-opus-4-6",
-                max_tokens=8192,
-                thinking={"type": "adaptive"},
+                model=resolved_model,
+                max_tokens=4096,
                 system=SYSTEM_PROMPT,
                 tools=tools,
                 messages=messages,
@@ -909,7 +929,7 @@ async def run_sre_agent(
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="sre-agent",
-        description="SRE Incident Response Agent — powered by Claude claude-opus-4-6",
+        description="SRE Incident Response Agent — powered by Claude",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
@@ -946,6 +966,15 @@ Examples:
         help="intelligent-sre-mcp API base URL (default: %(default)s)",
     )
     parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        metavar="MODEL",
+        help=(
+            "Claude model to use. Aliases: haiku (default, cheapest), sonnet, opus. "
+            "Or set SRE_MODEL env var. (default: %(default)s)"
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         default=False,
@@ -959,6 +988,7 @@ Examples:
                 args.prompt,
                 remediate=args.remediate,
                 api_base=args.api_url,
+                model=args.model,
                 verbose=args.verbose,
             )
         )
