@@ -432,18 +432,18 @@ HEALING_TOOLS: list[dict[str, Any]] = [
                     "description": (
                         "Kubernetes strategic merge patch body. Examples:\n"
                         "Remove impossible nodeSelector: "
-                        "{\"spec\":{\"template\":{\"spec\":{\"nodeSelector\":null}}}}\n"
+                        '{"spec":{"template":{"spec":{"nodeSelector":null}}}}\n'
                         "Remove failing readiness probe (container name 'sick-api'): "
-                        "{\"spec\":{\"template\":{\"spec\":{\"containers\":"
-                        "[{\"name\":\"sick-api\",\"readinessProbe\":null}]}}}}\n"
+                        '{"spec":{"template":{"spec":{"containers":'
+                        '[{"name":"sick-api","readinessProbe":null}]}}}}\n'
                         "Fix container command (container name 'crash-worker'): "
-                        "{\"spec\":{\"template\":{\"spec\":{\"containers\":"
-                        "[{\"name\":\"crash-worker\",\"command\":"
-                        "[\"sh\",\"-c\",\"echo ok; sleep 3600\"]}]}}}}\n"
+                        '{"spec":{"template":{"spec":{"containers":'
+                        '[{"name":"crash-worker","command":'
+                        '["sh","-c","echo ok; sleep 3600"]}]}}}}\n'
                         "Fix env var: "
-                        "{\"spec\":{\"template\":{\"spec\":{\"containers\":"
-                        "[{\"name\":\"app\",\"env\":"
-                        "[{\"name\":\"SHOULD_CRASH\",\"value\":\"false\"}]}]}}}}"
+                        '{"spec":{"template":{"spec":{"containers":'
+                        '[{"name":"app","env":'
+                        '[{"name":"SHOULD_CRASH","value":"false"}]}]}}}}'
                     ),
                 },
                 "dry_run": {"type": "boolean", "description": "Preview only (default: false)"},
@@ -873,13 +873,13 @@ DEFAULT_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
 #   claude-sonnet-4-5  $3.00 input  / $15.00 output  (better reasoning)
 #   claude-opus-4-6    $15.00 input / $75.00 output  (most capable, most expensive)
 SUPPORTED_MODELS = {
-    "haiku":  "claude-haiku-4-5",
+    "haiku": "claude-haiku-4-5",
     "sonnet": "claude-sonnet-4-5",
-    "opus":   "claude-opus-4-6",
+    "opus": "claude-opus-4-6",
     # also accept full model IDs directly
-    "claude-haiku-4-5":  "claude-haiku-4-5",
+    "claude-haiku-4-5": "claude-haiku-4-5",
     "claude-sonnet-4-5": "claude-sonnet-4-5",
-    "claude-opus-4-6":   "claude-opus-4-6",
+    "claude-opus-4-6": "claude-opus-4-6",
 }
 
 

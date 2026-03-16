@@ -49,9 +49,7 @@ class AlertStore:
         # os.getenv returns "" (falsy) when the var is set to empty string (e.g. dev override).
         # Treat empty string the same as unset so we always fall back to a real file path.
         self.db_path = (
-            db_path
-            or os.getenv("ACTION_HISTORY_DB")
-            or "/tmp/intelligent_sre_actions.db"
+            db_path or os.getenv("ACTION_HISTORY_DB") or "/tmp/intelligent_sre_actions.db"
         )
         self.is_postgres = self._is_postgres_url(self.db_path)
         self.placeholder = "%s" if self.is_postgres else "?"

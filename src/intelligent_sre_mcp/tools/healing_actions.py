@@ -80,8 +80,7 @@ class HealingActionLimiter:
             same_scope_actions = [
                 a
                 for a in self.action_history
-                if a["action_type"] == action_type
-                and a["timestamp"] > cooldown_window
+                if a["action_type"] == action_type and a["timestamp"] > cooldown_window
             ]
 
         if same_scope_actions:
@@ -878,8 +877,7 @@ class HealingActions:
                 "namespace": namespace,
                 "resource": deployment_name,
                 "message": (
-                    "Deployment patched successfully. "
-                    "Pods will be recreated with the updated spec."
+                    "Deployment patched successfully. Pods will be recreated with the updated spec."
                 ),
                 "patch_applied": patch,
                 "action_id": action_id,

@@ -812,9 +812,7 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
             model=SRE_REMEDIATION_MODEL,
             max_tokens=SRE_MAX_TOKENS,
         )
-        alert_store.update_remediation(
-            alert_id, remediation or "No remediation output returned."
-        )
+        alert_store.update_remediation(alert_id, remediation or "No remediation output returned.")
         logger.info("Alert remediation complete", extra={"alert_id": alert_id})
     except Exception as exc:  # noqa: BLE001
         logger.error(
