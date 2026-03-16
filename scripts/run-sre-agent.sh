@@ -16,10 +16,12 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # ── Load .env so ANTHROPIC_API_KEY does not need to be exported manually ─────
 if [[ -f "${REPO_ROOT}/.env" ]]; then
+  set +u            # .env may use ${VAR:-default} before vars are defined
   set -o allexport
   # shellcheck source=/dev/null
   source "${REPO_ROOT}/.env"
   set +o allexport
+  set -u
 fi
 
 # ── Validate API key ─────────────────────────────────────────────────────────

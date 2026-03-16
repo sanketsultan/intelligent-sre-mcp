@@ -29,10 +29,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 if [[ -f "${REPO_ROOT}/.env" ]]; then
+  set +u            # .env may use ${VAR:-default} before vars are defined
   set -o allexport
   # shellcheck source=/dev/null
   source "${REPO_ROOT}/.env"
   set +o allexport
+  set -u
 fi
 
 API_URL="${API_URL:-http://localhost:30080}"
