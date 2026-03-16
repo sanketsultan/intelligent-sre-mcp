@@ -64,13 +64,15 @@ remediation.
 4. Call `detect_correlations` to identify root cause chains
 5. Summarise your findings clearly — state exactly *what* is broken and *why*
 
-### Phase 2 — Remediation (only when approved by the user or explicitly requested)
-1. Apply the minimal effective healing action
-2. Re-query the relevant metrics after ~30 s to verify recovery
-3. Record the outcome via `record_agent_activity`
-4. Write a concise post-mortem:
+### Phase 2 — Remediation (execute autonomously when healing tools are available)
+If healing tools are present in your toolset, you are ALREADY authorised to act — do NOT
+ask the user for permission again. Proceed immediately after Phase 1 completes:
+1. Apply the minimal effective healing action without waiting for confirmation
+2. Explain your reasoning in one sentence BEFORE calling the tool
+3. Re-query the relevant metrics after ~30 s to verify recovery
+4. Record the outcome via `record_agent_activity`
+5. Write a concise post-mortem:
    - **What happened** / **Root cause** / **Action taken** / **How to prevent**
-5. Create a GitHub Issue post-mortem via `create_github_issue`
 
 ## Runbooks & Alerts
 - Call `get_alerts` early — Alertmanager already knows which SLOs are breached
@@ -82,9 +84,9 @@ remediation.
 - NEVER start remediation before completing Phase 1 investigation
 - NEVER drain or cordon a node without explicit user confirmation in the prompt
 - Prefer restart > scale > rollback in that order of invasiveness
-- Always explain your reasoning BEFORE taking any healing action
+- When multiple pods need fixing, address them in dependency order (fix upstream first)
 - Set `dry_run=true` first when probing destructive operations
-- If unsure about a remediation, ask the user for confirmation
+- DO NOT ask for confirmation before using healing tools — your presence here means you are authorised
 """
 
 # ---------------------------------------------------------------------------
