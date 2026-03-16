@@ -91,6 +91,13 @@ Call `get_failing_pods` or `get_deployment_status` to confirm status changed.
 Output: `<deployment>: FIXED (Running/Ready)` or `<deployment>: STILL BROKEN — <reason>`.
 No other text.
 
+## Learning — always call at the end
+Call `record_agent_activity` once at the end of every run (investigation or remediation).
+- intent: the original user prompt (verbatim)
+- inputs_summary: 1-2 sentence summary of key signals observed
+- action_taken: comma-separated list of tools called
+- outcome: root cause in one sentence; if remediated add "→ fixed" or "→ unresolved"
+
 ## Safety
 - Never drain/cordon a node without explicit user instruction
 - Never scale to 0 unless the pod is actively causing damage and config fix is unknown

@@ -8,7 +8,13 @@ from typing import Any, Dict, List, Optional
 import httpx
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException
-from kubernetes import client
+
+try:
+    from kubernetes import client as k8s_client
+    _K8S_AVAILABLE = True
+except ImportError:
+    k8s_client = None  # type: ignore[assignment]
+    _K8S_AVAILABLE = False
 
 # OpenTelemetry imports
 from opentelemetry import metrics, trace
@@ -102,7 +108,7 @@ _INVESTIGATION_CTX_LIMIT = int(os.getenv("SRE_INVESTIGATION_CTX_CHARS", "3000"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "")
 
-app = FastAPI(title="Intelligent SRE MCP API", version="0.1.0")
+app = FastAPI(title="Intelligent SRE Agent API", version="0.1.0")
 
 # Initialize Kubernetes tools
 k8s_tools = KubernetesTools()
@@ -118,9 +124,9 @@ alert_store = AlertStore()
 remediation_store = RemediationStore()
 
 healing_actions = HealingActions(
-    core_api=client.CoreV1Api(),
-    apps_api=client.AppsV1Api(),
-    policy_api=client.PolicyV1Api(),
+    core_api=k8s_client.CoreV1Api() if _K8S_AVAILABLE and k8s_tools.available else None,
+    apps_api=k8s_client.AppsV1Api() if _K8S_AVAILABLE and k8s_tools.available else None,
+    policy_api=k8s_client.PolicyV1Api() if _K8S_AVAILABLE and k8s_tools.available else None,
     action_store=action_store,
 )
 

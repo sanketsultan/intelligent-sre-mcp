@@ -20,7 +20,7 @@ K8S_PROD    := k8s/overlays/prod
 .PHONY: help
 help:
 	@echo ""
-	@echo "intelligent-sre-mcp — development targets"
+	@echo "intelligent-sre-agent — development targets"
 	@echo ""
 	@echo "  Local (Docker Compose — no K8s required):"
 	@echo "    make env          Auto-fill .env with all defaults (safe to re-run)"
@@ -96,7 +96,7 @@ k8s-status:
 
 .PHONY: k8s-logs
 k8s-logs:
-	kubectl logs -n intelligent-sre -l app=intelligent-sre-mcp -f --tail=100
+	kubectl logs -n intelligent-sre -l app=intelligent-sre-agent -f --tail=100
 
 # ---------------------------------------------------------------------------
 # Tests
