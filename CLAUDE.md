@@ -142,11 +142,20 @@ python -m intelligent_sre_agent.sre_agent "check health"
 ```
 
 ## Slash commands
-- `/lint` — ruff check + format, auto-fix all issues
-- `/test` — run pytest, fix failures
-- `/tf-check` — terraform fmt + tflint + checkov, fix all issues
-- `/ci-fix` — inspect latest CI run, fix all failing jobs
-- `/pr` — create PR to master with summary and test plan
+
+Dev quality (`.claude/commands/dev/`):
+- `/dev:lint` — ruff check + format, auto-fix all issues
+- `/dev:test` — run pytest, fix failures
+- `/dev:tf-check` — terraform fmt + tflint + checkov, fix all issues
+- `/dev:ci-fix` — inspect latest CI run, fix all failing jobs
+- `/dev:pr` — create PR to master with summary and test plan
+
+SRE / ops (`.claude/commands/skills/`):
+- `/skills:sre <prompt>` — run SRE agent against live stack; add `--remediate` to heal
+- `/skills:deploy` — docker build + kubectl apply + rollout status
+- `/skills:k8s-status` — cluster health summary with service endpoint checks
+- `/skills:chaos deploy|teardown|status` — inject or clean up chaos pods
+- `/skills:chaos-test` — full end-to-end remediation test
 
 ## Conventions
 - Python: ruff enforced, no new deps without pyproject.toml update

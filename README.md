@@ -4,6 +4,15 @@ AI-powered SRE platform that autonomously detects, investigates, and heals produ
 
 Alertmanager fires an alert → the agent queries Prometheus, Loki, and Kubernetes → determines root cause → remediates (restart pod, patch deployment, rollback release) → posts a summary to Slack. All with a full audit trail in PostgreSQL.
 
+## Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — for Docker Compose and local Kubernetes
+- Python 3.10+ — for running the SRE agent CLI
+- `kubectl` — for Kubernetes setup (included with Docker Desktop)
+- `ANTHROPIC_API_KEY` — get one at https://console.anthropic.com
+
+---
+
 ## Quick Start
 
 ### Docker Compose (recommended for local dev)
@@ -11,6 +20,7 @@ Alertmanager fires an alert → the agent queries Prometheus, Loki, and Kubernet
 ```bash
 git clone https://github.com/sanketsultan/intelligent-sre-agent.git
 cd intelligent-sre-agent
+cp .env.example .env        # then set ANTHROPIC_API_KEY in .env
 make dev
 ```
 
@@ -23,6 +33,7 @@ make dev
 ### Kubernetes (Docker Desktop)
 
 ```bash
+cp .env.example .env        # then set ANTHROPIC_API_KEY in .env
 ./scripts/setup.sh
 ```
 
