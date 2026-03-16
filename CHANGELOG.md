@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `requirements.txt` – all 12 dependencies now have version ranges (`>=min,<major+1`)
 - `pyproject.toml` – added `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage]`
 - `Dockerfile` – pinned to `python:3.10.17-slim-bookworm`, non-root user (uid 1000), multi-stage build, real `HEALTHCHECK` against `/health`
-- `k8s/intelligent-sre-mcp.yaml` – replaced dummy `exec: sys.exit(0)` probes with real `httpGet /health` liveness/readiness/startup probes; added pod + container `SecurityContext` (non-root, read-only FS, drop ALL capabilities)
+- `k8s/intelligent-sre-agent.yaml` – replaced dummy `exec: sys.exit(0)` probes with real `httpGet /health` liveness/readiness/startup probes; added pod + container `SecurityContext` (non-root, read-only FS, drop ALL capabilities)
 - `k8s/prometheus.yaml` – replaced `emptyDir` with a 10 Gi PVC; pinned image to `prom/prometheus:v2.55.1`; added `--storage.tsdb.retention.time=15d`; added health probes and SecurityContext
 - `k8s/kustomization.yaml` – added new manifests (`resource-limits`, `network-policy`, `hpa`)
 

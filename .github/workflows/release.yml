@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}   # sanketsultan/intelligent-sre-mcp
+  IMAGE_NAME: ${{ github.repository }}   # sanketsultan/intelligent-sre-agent
 
 jobs:
   build-push:
@@ -62,13 +62,13 @@ jobs:
             ## Docker Image
 
             ```bash
-            docker pull ghcr.io/sanketsultan/intelligent-sre-mcp:${{ github.ref_name }}
+            docker pull ghcr.io/sanketsultan/intelligent-sre-agent:${{ github.ref_name }}
             ```
 
             ## Kubernetes deployment
 
             ```bash
-            kubectl set image deployment/intelligent-sre-mcp \
-              intelligent-sre-mcp=ghcr.io/sanketsultan/intelligent-sre-mcp:${{ github.ref_name }} \
+            kubectl set image deployment/intelligent-sre-agent \
+              intelligent-sre-agent=ghcr.io/sanketsultan/intelligent-sre-agent:${{ github.ref_name }} \
               -n intelligent-sre
             ```

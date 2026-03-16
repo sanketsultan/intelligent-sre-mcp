@@ -23,8 +23,8 @@ otherwise — with a full audit trail in PostgreSQL.
 ### Option A: Docker Compose (no Kubernetes required — recommended for local dev)
 
 ```bash
-git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
-cd intelligent-sre-mcp
+git clone https://github.com/sanketsultan/intelligent-sre-agent.git
+cd intelligent-sre-agent
 make dev
 ```
 
@@ -212,7 +212,7 @@ docker compose ps
 **API not responding (K8s):**
 ```bash
 kubectl get pods -n intelligent-sre
-kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50
+kubectl logs -n intelligent-sre deployment/intelligent-sre-agent --tail=50
 ```
 
 **Remediation defers everything to human:**

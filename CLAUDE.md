@@ -1,4 +1,4 @@
-# intelligent-sre-mcp
+# intelligent-sre-agent
 
 AI-powered SRE platform exposing MCP tools for autonomous incident detection, triage, and healing.
 
@@ -63,7 +63,7 @@ python -m intelligent_sre_mcp.bot.slack_bot
 #   GET  http://localhost:30080/alerts           — list all saved alerts
 #   GET  http://localhost:30080/alerts/<id>      — single alert with investigation
 
-# Webhook-triggered agent model selection (set in k8s/base/app/intelligent-sre-mcp.yaml):
+# Webhook-triggered agent model selection (set in k8s/base/app/intelligent-sre-agent.yaml):
 #   SRE_MODEL               — Phase 1 investigation model (default: claude-haiku-4-5, cheap/fast)
 #   SRE_REMEDIATION_MODEL   — Phase 2 remediation model (default: claude-sonnet-4-5, more capable)
 #
@@ -117,7 +117,7 @@ K8s log (JSON): `{"msg":"SRE agent finished","input_tokens":1243,"output_tokens"
 | `claude-sonnet-4-5` | $3.00 | $15.00 | ~$0.005–$0.05 — remediation (default Phase 2) |
 | `claude-opus-4-6` | $15.00 | $75.00 | ~$0.10 — critical incidents only |
 
-### Cost levers (env vars in `k8s/base/app/intelligent-sre-mcp.yaml`)
+### Cost levers (env vars in `k8s/base/app/intelligent-sre-agent.yaml`)
 | Var | Default | Effect |
 |---|---|---|
 | `SRE_MODEL` | `claude-haiku-4-5` | Phase 1 investigation model — cheapest, fast |
@@ -128,13 +128,13 @@ K8s log (JSON): `{"msg":"SRE agent finished","input_tokens":1243,"output_tokens"
 ### Quick tuning
 ```bash
 # Cheapest possible (investigation only, no remediation):
-kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_MODEL=haiku
+kubectl set env deploy/intelligent-sre-agent -n intelligent-sre SRE_MODEL=haiku
 
 # More aggressive context truncation (smaller Phase 2 input):
-kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_INVESTIGATION_CTX_CHARS=1500
+kubectl set env deploy/intelligent-sre-agent -n intelligent-sre SRE_INVESTIGATION_CTX_CHARS=1500
 
 # Raise output ceiling if remediation_summary looks cut off:
-kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_MAX_TOKENS=6144
+kubectl set env deploy/intelligent-sre-agent -n intelligent-sre SRE_MAX_TOKENS=6144
 
 # CLI: see real token cost per run
 python -m intelligent_sre_mcp.sre_agent "check health"

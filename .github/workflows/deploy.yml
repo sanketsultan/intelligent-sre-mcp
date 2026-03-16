@@ -165,7 +165,7 @@ jobs:
 
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/intelligent-sre-mcp \
+          kubectl rollout status deployment/intelligent-sre-agent \
             -n intelligent-sre --timeout=300s
 
       - name: Deployment summary
@@ -176,7 +176,7 @@ jobs:
           echo "| Environment | dev |" >> $GITHUB_STEP_SUMMARY
           echo "| Image tag   | \`${{ steps.tag.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Cluster     | \`${{ vars.EKS_CLUSTER_NAME_DEV }}\` |" >> $GITHUB_STEP_SUMMARY
-          kubectl get pods -n intelligent-sre -l app=intelligent-sre-mcp \
+          kubectl get pods -n intelligent-sre -l app=intelligent-sre-agent \
             --no-headers | awk '{print $1, $2, $3}' >> $GITHUB_STEP_SUMMARY
 
   # -------------------------------------------------------------------------
@@ -238,7 +238,7 @@ jobs:
 
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/intelligent-sre-mcp \
+          kubectl rollout status deployment/intelligent-sre-agent \
             -n intelligent-sre --timeout=300s
 
       - name: Deployment summary
@@ -249,5 +249,5 @@ jobs:
           echo "| Environment | prod |" >> $GITHUB_STEP_SUMMARY
           echo "| Image tag   | \`${{ steps.tag.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Cluster     | \`${{ vars.EKS_CLUSTER_NAME_PROD }}\` |" >> $GITHUB_STEP_SUMMARY
-          kubectl get pods -n intelligent-sre -l app=intelligent-sre-mcp \
+          kubectl get pods -n intelligent-sre -l app=intelligent-sre-agent \
             --no-headers | awk '{print $1, $2, $3}' >> $GITHUB_STEP_SUMMARY
