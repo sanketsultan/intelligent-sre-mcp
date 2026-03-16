@@ -86,8 +86,14 @@ fi
 success "Kubernetes cluster reachable"
 echo ""
 
+# --- Ensure namespace exists ---
+info "Step 1/6: Ensuring namespace exists"
+kubectl apply -f "$PROJECT_DIR/k8s/base/namespace.yaml"
+success "Namespace intelligent-sre ready"
+echo ""
+
 # --- Create Anthropic API key secret ---
-info "Step 0/4: Creating anthropic-credentials secret"
+info "Step 2/6: Creating anthropic-credentials secret"
 # Load .env to get ANTHROPIC_API_KEY (disable nounset for ${VAR:-default} expressions)
 set +u
 if [ -f ".env" ]; then
@@ -106,25 +112,51 @@ else
 fi
 echo ""
 
+# --- Clean up legacy static PV and broken postgres state ---
+info "Step 3/6: Cleaning up stale resources"
+# Remove the old manually-managed postgres-pv if it still exists (replaced by dynamic provisioning)
+if kubectl get pv postgres-pv >/dev/null 2>&1; then
+  warn "Found legacy static PV postgres-pv — removing"
+  kubectl delete statefulset postgres -n intelligent-sre --ignore-not-found
+  kubectl delete pvc postgres-data-postgres-0 -n intelligent-sre --ignore-not-found
+  kubectl delete pv postgres-pv --ignore-not-found
+  success "Legacy PV and dependent resources removed"
+else
+  # Check if postgres pod is in a crash/error state and clean it up
+  POSTGRES_PHASE=$(kubectl get pod postgres-0 -n intelligent-sre \
+    -o jsonpath='{.status.phase}' 2>/dev/null || true)
+  RESTART_COUNT=$(kubectl get pod postgres-0 -n intelligent-sre \
+    -o jsonpath='{.status.containerStatuses[0].restartCount}' 2>/dev/null || echo "0")
+  if [ "${POSTGRES_PHASE}" = "Failed" ] || [ "${RESTART_COUNT:-0}" -gt 5 ]; then
+    warn "Postgres pod is unhealthy (phase=${POSTGRES_PHASE} restarts=${RESTART_COUNT}) — recreating"
+    kubectl delete statefulset postgres -n intelligent-sre --ignore-not-found
+    kubectl delete pvc postgres-data-postgres-0 -n intelligent-sre --ignore-not-found
+    success "Stale postgres resources removed"
+  else
+    success "No stale resources found"
+  fi
+fi
+echo ""
+
 # --- Build Docker image ---
-info "Step 1/4: Building Docker image"
+info "Step 4/6: Building Docker image"
 docker build -t intelligent-sre-agent:latest . >/dev/null 2>&1
 success "Docker image built: intelligent-sre-agent:latest"
 echo ""
 
 # --- Deploy to Kubernetes ---
-info "Step 2/4: Deploying to Kubernetes (dev overlay)"
+info "Step 5/6: Deploying to Kubernetes (dev overlay)"
 kubectl apply -k k8s/overlays/dev
 success "Kustomize resources applied"
 echo ""
 
 # --- Wait for pods ---
-info "Step 3/4: Verifying deployment"
+info "Step 6/6: Verifying deployment"
 wait_for_pods "intelligent-sre"
 echo ""
 
 # --- Verify service endpoints ---
-info "Step 4/4: Checking service endpoints"
+info "Checking service endpoints"
 for url_label in \
   "http://localhost:30080/health|API" \
   "http://localhost:30090/-/healthy|Prometheus" \
