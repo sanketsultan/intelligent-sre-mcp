@@ -48,10 +48,10 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 16Mi
+              memory: 32Mi
             limits:
               cpu: 50m
-              memory: 32Mi
+              memory: 64Mi
 ---
 # Service for crash-worker — will have no ready endpoints since the pod never
 # stays Running. dependent-worker tries to reach this and fails (the cascade).

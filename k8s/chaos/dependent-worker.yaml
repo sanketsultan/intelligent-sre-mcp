@@ -57,10 +57,10 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 16Mi
+              memory: 32Mi
             limits:
               cpu: 50m
-              memory: 32Mi
+              memory: 64Mi
       containers:
         - name: dependent-worker
           image: busybox:1.36
@@ -73,7 +73,7 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 16Mi
+              memory: 32Mi
             limits:
               cpu: 50m
-              memory: 32Mi
+              memory: 64Mi

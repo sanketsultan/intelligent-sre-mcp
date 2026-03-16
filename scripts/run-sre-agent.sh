@@ -14,10 +14,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# ── Load .env so ANTHROPIC_API_KEY does not need to be exported manually ─────
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+  set -o allexport
+  # shellcheck source=/dev/null
+  source "${REPO_ROOT}/.env"
+  set +o allexport
+fi
+
 # ── Validate API key ─────────────────────────────────────────────────────────
 if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
   echo "Error: ANTHROPIC_API_KEY is not set." >&2
-  echo "  export ANTHROPIC_API_KEY=sk-ant-..." >&2
+  echo "  Add it to .env: echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env" >&2
   exit 1
 fi
 

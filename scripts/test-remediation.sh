@@ -25,6 +25,16 @@
 
 set -euo pipefail
 
+# ── Load .env so ANTHROPIC_API_KEY does not need to be exported manually ─────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+if [[ -f "${REPO_ROOT}/.env" ]]; then
+  set -o allexport
+  # shellcheck source=/dev/null
+  source "${REPO_ROOT}/.env"
+  set +o allexport
+fi
+
 API_URL="${API_URL:-http://localhost:30080}"
 NAMESPACE="intelligent-sre"
 CHAOS_LABEL="chaos-test=true"
@@ -44,7 +54,7 @@ info "Checking prerequisites"
 
 if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
   echo "Error: ANTHROPIC_API_KEY is not set." >&2
-  echo "  export ANTHROPIC_API_KEY=sk-ant-..." >&2
+  echo "  Add it to .env: echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env" >&2
   exit 1
 fi
 success "ANTHROPIC_API_KEY set"

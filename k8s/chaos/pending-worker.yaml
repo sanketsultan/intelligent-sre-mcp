@@ -1,9 +1,9 @@
 ---
-# pending-worker: simulates a misconfigured deployment that requests more CPU
-# than any node in the cluster can provide (100 cores on a single Docker Desktop node).
-# Result: Pod stays Pending forever — scheduler cannot find a node to place it on.
-# K8s event: "0/1 nodes are available: 1 Insufficient cpu."
-# Agent fix: identify the resource request is impossibly high, scale to 0.
+# pending-worker: simulates a misconfigured deployment that cannot be scheduled
+# because it requires a node with a hardware label that does not exist in the cluster.
+# Result: Pod stays Pending forever — scheduler finds no matching node.
+# K8s event: "0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector."
+# Agent fix: identify the impossible nodeSelector, scale to 0.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +25,11 @@ spec:
         chaos-test: "true"
         failure-mode: pending-unschedulable
     spec:
+      # Intentionally impossible: no node in the cluster has this label.
+      # docker-desktop only has standard labels (kubernetes.io/os=linux, etc).
+      # This causes: "0/1 nodes are available: 1 node(s) didn't match nodeSelector."
+      nodeSelector:
+        hardware-accelerator: "a100-gpu"
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -42,10 +47,8 @@ spec:
               drop: ["ALL"]
           resources:
             requests:
-              # Intentionally impossible: no single node has 100 CPU cores.
-              # This causes the scheduler to emit: "Insufficient cpu" and leave the pod Pending.
-              cpu: "100"
-              memory: 128Mi
+              cpu: 10m
+              memory: 32Mi
             limits:
-              cpu: "100"
-              memory: 256Mi
+              cpu: 100m
+              memory: 64Mi
