@@ -128,13 +128,37 @@ metadata:
   namespace: intelligent-sre
 data:
   alertmanager.yml: |
-    global: {}
+    global:
+      resolve_timeout: 5m
 
     route:
-      receiver: "default"
+      receiver: sre-agent
+      group_by: [alertname, severity, namespace]
+      group_wait: 10s       # wait 10s to batch alerts in the same group
+      group_interval: 5m    # resend if new alerts join the group
+      repeat_interval: 1h   # re-fire if still firing after 1 hour
+
+      routes:
+        # critical alerts go straight to the agent for immediate remediation
+        - matchers:
+            - severity = critical
+          receiver: sre-agent
+          group_wait: 5s
+          repeat_interval: 30m
+
+        # warning alerts are batched and sent less urgently
+        - matchers:
+            - severity = warning
+          receiver: sre-agent
+          group_wait: 30s
+          repeat_interval: 2h
 
     receivers:
-      - name: "default"
+      - name: sre-agent
+        webhook_configs:
+          - url: "http://intelligent-sre-agent.intelligent-sre.svc.cluster.local:8080/alertmanager/webhook"
+            send_resolved: true
+            max_alerts: 20     # cap payload size per POST
 
 ---
 apiVersion: v1
