@@ -86,6 +86,26 @@ fi
 success "Kubernetes cluster reachable"
 echo ""
 
+# --- Create Anthropic API key secret ---
+info "Step 0/4: Creating anthropic-credentials secret"
+# Load .env to get ANTHROPIC_API_KEY (disable nounset for ${VAR:-default} expressions)
+set +u
+if [ -f ".env" ]; then
+  # shellcheck source=/dev/null
+  set -o allexport; source .env; set +o allexport
+fi
+set -u
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  warn "ANTHROPIC_API_KEY not set — skipping secret creation. Set it in .env to enable the webhook agent."
+else
+  kubectl create secret generic anthropic-credentials \
+    --namespace intelligent-sre \
+    --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  success "anthropic-credentials secret applied"
+fi
+echo ""
+
 # --- Build Docker image ---
 info "Step 1/4: Building Docker image"
 docker build -t intelligent-sre-mcp:latest . >/dev/null 2>&1

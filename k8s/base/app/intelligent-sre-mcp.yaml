@@ -106,6 +106,11 @@ spec:
                   key: POSTGRES_DB
             - name: ACTION_HISTORY_DB
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-credentials
+                  key: ANTHROPIC_API_KEY
 
           # Container-level security: drop all capabilities, read-only FS
           securityContext:
