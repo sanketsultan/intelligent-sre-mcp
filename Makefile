@@ -36,6 +36,9 @@ help:
 	@echo "    make k8s-status   Show pod status in intelligent-sre namespace"
 	@echo "    make k8s-logs     Tail API pod logs"
 	@echo ""
+	@echo "  Smart:"
+	@echo "    make logs         Auto-detect Docker or K8s and tail the right logs"
+	@echo ""
 	@echo "  Quality:"
 	@echo "    make test         Run unit tests"
 	@echo "    make lint         Run ruff check + format (auto-fix)"
@@ -50,10 +53,23 @@ env:
 	@bash scripts/setup-env.sh
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+.PHONY: _require-env
+_require-env:
+	@if [ ! -f .env ]; then \
+	  echo ""; \
+	  echo "ERR  .env not found. Run: cp .env.example .env"; \
+	  echo "     Then set ANTHROPIC_API_KEY in .env and retry."; \
+	  echo ""; \
+	  exit 1; \
+	fi
+
+# ---------------------------------------------------------------------------
 # Docker Compose (local — no K8s required)
 # ---------------------------------------------------------------------------
 .PHONY: dev
-dev: env
+dev: _require-env
 	$(COMPOSE) up -d
 	@echo ""
 	@echo "Stack is up:"
@@ -61,10 +77,10 @@ dev: env
 	@echo "  Prometheus: http://localhost:9090"
 	@echo "  Grafana:    http://localhost:3000  (see .env for credentials)"
 	@echo ""
-	@echo "Run 'make dev-logs' to follow API logs."
+	@echo "Run 'make logs' to follow API logs."
 
 .PHONY: dev-build
-dev-build: env
+dev-build: _require-env
 	$(COMPOSE) up -d --build
 
 .PHONY: dev-down
@@ -72,8 +88,23 @@ dev-down:
 	$(COMPOSE) down
 
 .PHONY: dev-logs
-dev-logs:
+dev-logs: _require-env
 	$(COMPOSE) logs -f api
+
+# Auto-detect running environment and tail the right logs.
+.PHONY: logs
+logs:
+	@if kubectl get pods -n intelligent-sre >/dev/null 2>&1; then \
+	  echo "==> Kubernetes detected — tailing agent logs"; \
+	  kubectl logs -n intelligent-sre -l app=intelligent-sre-agent -f --tail=100; \
+	elif [ -f .env ] && $(COMPOSE) ps --services --filter status=running 2>/dev/null | grep -q api; then \
+	  echo "==> Docker Compose detected — tailing api logs"; \
+	  $(COMPOSE) logs -f api; \
+	else \
+	  echo "ERR  No running environment detected."; \
+	  echo "     Docker Compose: cp .env.example .env && make dev"; \
+	  echo "     Kubernetes:     cp .env.example .env && ./scripts/setup.sh"; \
+	fi
 
 # ---------------------------------------------------------------------------
 # Kubernetes
