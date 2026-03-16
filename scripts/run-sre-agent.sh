@@ -8,7 +8,7 @@
 #
 # Environment variables:
 #   ANTHROPIC_API_KEY  — Required. Anthropic API key.
-#   API_URL            — intelligent-sre-mcp API base URL (default: http://localhost:30080)
+#   API_URL            — intelligent-sre-agent API base URL (default: http://localhost:30080)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,4 +38,4 @@ if [[ -f "${REPO_ROOT}/.venv/bin/activate" ]]; then
 fi
 
 # ── Run the agent ─────────────────────────────────────────────────────────────
-exec python -m intelligent_sre_mcp.sre_agent "$@"
+exec python -m intelligent_sre_agent.sre_agent "$@"

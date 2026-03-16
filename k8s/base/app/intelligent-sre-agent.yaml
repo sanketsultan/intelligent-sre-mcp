@@ -2,10 +2,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: intelligent-sre-mcp
+  name: intelligent-sre-agent
   namespace: intelligent-sre
   labels:
-    app: intelligent-sre-mcp
+    app: intelligent-sre-agent
 spec:
   type: NodePort
   ports:
@@ -15,27 +15,27 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: intelligent-sre-mcp
+    app: intelligent-sre-agent
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: intelligent-sre-mcp
+  name: intelligent-sre-agent
   namespace: intelligent-sre
   labels:
-    app: intelligent-sre-mcp
+    app: intelligent-sre-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: intelligent-sre-mcp
+      app: intelligent-sre-agent
   template:
     metadata:
       labels:
-        app: intelligent-sre-mcp
+        app: intelligent-sre-agent
     spec:
-      serviceAccountName: intelligent-sre-mcp
+      serviceAccountName: intelligent-sre-agent
 
       # Pod-level security: run as non-root, no privilege escalation
       securityContext:
@@ -75,8 +75,8 @@ spec:
                 - ALL
 
       containers:
-        - name: intelligent-sre-mcp
-          image: intelligent-sre-mcp:latest
+        - name: intelligent-sre-agent
+          image: intelligent-sre-agent:latest
           imagePullPolicy: Never  # Use local image; change to IfNotPresent for registry
           env:
             - name: PROMETHEUS_URL
@@ -88,7 +88,7 @@ spec:
             - name: REQUEST_TIMEOUT
               value: "10"
             - name: SERVICE_NAME
-              value: "intelligent-sre-mcp"
+              value: "intelligent-sre-agent"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:

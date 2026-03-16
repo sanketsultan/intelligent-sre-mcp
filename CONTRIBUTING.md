@@ -1,4 +1,4 @@
-# Contributing to intelligent-sre-mcp
+# Contributing to intelligent-sre-agent
 
 Thank you for contributing! This guide covers the local dev setup, code style, testing, and the PR process.
 
@@ -6,8 +6,8 @@ Thank you for contributing! This guide covers the local dev setup, code style, t
 
 ```bash
 # 1. Clone
-git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
-cd intelligent-sre-mcp
+git clone https://github.com/sanketsultan/intelligent-sre-agent.git
+cd intelligent-sre-agent
 
 # 2. Python environment (3.10+)
 python -m venv .venv
@@ -46,17 +46,17 @@ curl http://localhost:8080/health
 minikube start
 
 # Build and load image
-docker build -t intelligent-sre-mcp:latest .
-minikube image load intelligent-sre-mcp:latest
+docker build -t intelligent-sre-agent:latest .
+minikube image load intelligent-sre-agent:latest
 
 # Deploy
 kubectl apply -k k8s/
 
 # Wait for readiness
-kubectl -n intelligent-sre rollout status deployment/intelligent-sre-mcp
+kubectl -n intelligent-sre rollout status deployment/intelligent-sre-agent
 
 # Access API
-kubectl -n intelligent-sre port-forward svc/intelligent-sre-mcp 8080:8080
+kubectl -n intelligent-sre port-forward svc/intelligent-sre-agent 8080:8080
 curl http://localhost:8080/health
 ```
 
@@ -86,7 +86,7 @@ Pre-commit hooks run `ruff` automatically on every commit.
 pytest
 
 # Run with coverage report
-pytest --cov=src/intelligent_sre_mcp --cov-report=term-missing
+pytest --cov=src/intelligent_sre_agent --cov-report=term-missing
 
 # Run a specific test file
 pytest tests/test_detection.py -v
@@ -131,13 +131,13 @@ git push origin v1.0.0
 ```
 
 This triggers the `release.yml` workflow which builds a multi-arch Docker image
-and pushes it to `ghcr.io/sanketsultan/intelligent-sre-mcp:v1.0.0`.
+and pushes it to `ghcr.io/sanketsultan/intelligent-sre-agent:v1.0.0`.
 
 ## Project structure
 
 ```
-intelligent-sre-mcp/
-├── src/intelligent_sre_mcp/   Python package
+intelligent-sre-agent/
+├── src/intelligent_sre_agent/   Python package
 │   ├── api_server.py           FastAPI application (29 endpoints)
 │   ├── api_client.py           MCP client implementation
 │   ├── server.py               MCP stdio server entry point

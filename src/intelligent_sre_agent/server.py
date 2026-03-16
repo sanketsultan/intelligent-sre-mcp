@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 
-mcp = FastMCP("intelligent-sre-mcp")
+mcp = FastMCP("intelligent-sre-agent")
 
 
 # OTel configuration

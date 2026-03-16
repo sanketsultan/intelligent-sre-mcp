@@ -23,8 +23,8 @@ otherwise — with a full audit trail in PostgreSQL.
 ### Option A: Docker Compose (no Kubernetes required — recommended for local dev)
 
 ```bash
-git clone https://github.com/sanketsultan/intelligent-sre-mcp.git
-cd intelligent-sre-mcp
+git clone https://github.com/sanketsultan/intelligent-sre-agent.git
+cd intelligent-sre-agent
 make dev
 ```
 
@@ -90,10 +90,10 @@ Requires `ANTHROPIC_API_KEY` in `.env` and a running API stack.
 
 ```bash
 # Investigate
-python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+python -m intelligent_sre_agent.sre_agent "What is the current health of the system?"
 
 # Investigate + auto-remediate
-python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+python -m intelligent_sre_agent.sre_agent --remediate "Pods are CrashLoopBackOff in production"
 
 # Convenience script
 ./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
@@ -129,7 +129,7 @@ to a human via the configured Slack notify callback.
 
 ```bash
 # Requires SLACK_BOT_TOKEN + SLACK_APP_TOKEN + ANTHROPIC_API_KEY in .env
-python -m intelligent_sre_mcp.bot.slack_bot
+python -m intelligent_sre_agent.bot.slack_bot
 # Or:
 ./scripts/run-slack-bot.sh
 ```
@@ -212,7 +212,7 @@ docker compose ps
 **API not responding (K8s):**
 ```bash
 kubectl get pods -n intelligent-sre
-kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50
+kubectl logs -n intelligent-sre deployment/intelligent-sre-agent --tail=50
 ```
 
 **Remediation defers everything to human:**

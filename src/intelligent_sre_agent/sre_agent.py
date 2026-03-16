@@ -1,7 +1,7 @@
 """
 SRE Incident Response Agent
 ============================
-Uses Claude claude-opus-4-6 with the intelligent-sre-mcp FastAPI backend to autonomously
+Uses Claude claude-opus-4-6 with the intelligent-sre-agent FastAPI backend to autonomously
 investigate and (optionally) remediate production incidents.
 
 Two-phase pattern
@@ -22,13 +22,13 @@ Two-phase pattern
 Usage
 -----
   # Investigate only (safe, no changes)
-  python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+  python -m intelligent_sre_agent.sre_agent "What is the current health of the system?"
 
   # Investigate + remediate
-  python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLooping in production"
+  python -m intelligent_sre_agent.sre_agent --remediate "Pods are CrashLooping in production"
 
   # Custom API endpoint
-  python -m intelligent_sre_mcp.sre_agent --api-url http://my-cluster:30080 "Check health"
+  python -m intelligent_sre_agent.sre_agent --api-url http://my-cluster:30080 "Check health"
 """
 
 from __future__ import annotations
@@ -575,7 +575,7 @@ HEALING_TOOLS: list[dict[str, Any]] = [
 async def _call_api(
     http: httpx.AsyncClient, method: str, path: str, **kwargs: Any
 ) -> dict | list | str:
-    """Call the intelligent-sre-mcp FastAPI and return parsed JSON."""
+    """Call the intelligent-sre-agent FastAPI and return parsed JSON."""
     try:
         response = await getattr(http, method)(path, **kwargs)
         response.raise_for_status()
@@ -800,14 +800,14 @@ async def execute_tool(
         # ── Runbooks ──────────────────────────────────────────────────────────
 
         case "list_runbooks":
-            from intelligent_sre_mcp.runbooks import (
+            from intelligent_sre_agent.runbooks import (
                 list_runbooks as _list_runbooks,  # noqa: PLC0415
             )
 
             result = _list_runbooks()
 
         case "execute_runbook":
-            from intelligent_sre_mcp.runbooks import get_runbook  # noqa: PLC0415
+            from intelligent_sre_agent.runbooks import get_runbook  # noqa: PLC0415
 
             rb = get_runbook(tool_input["name"])
             result = rb.to_dict() if rb else {"error": f"Runbook '{tool_input['name']}' not found"}
@@ -900,7 +900,7 @@ async def run_sre_agent(
         prompt:    User's question or incident description.
         remediate: If True, healing tools are available alongside investigation tools.
                    If False (default), the agent runs in investigation-only mode.
-        api_base:  Base URL of the intelligent-sre-mcp FastAPI server.
+        api_base:  Base URL of the intelligent-sre-agent FastAPI server.
         api_key:   Anthropic API key (falls back to ANTHROPIC_API_KEY env var).
         model:     Claude model to use. Accepts short aliases (haiku/sonnet/opus)
                    or full model IDs. Defaults to SRE_MODEL env var or haiku.
@@ -1044,28 +1044,28 @@ Set SRE_MODEL env var to avoid typing --model every time:
 
 Examples:
   # Routine health check — haiku (default, cheapest)
-  python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+  python -m intelligent_sre_agent.sre_agent "What is the current health of the system?"
 
   # Specific incident — sonnet for better reasoning
-  python -m intelligent_sre_mcp.sre_agent --model sonnet \\
+  python -m intelligent_sre_agent.sre_agent --model sonnet \\
       "High 5xx error rate on the api service since 10 min"
 
   # Investigate AND remediate — sonnet recommended
-  python -m intelligent_sre_mcp.sre_agent --model sonnet --remediate \\
+  python -m intelligent_sre_agent.sre_agent --model sonnet --remediate \\
       "Pods are CrashLoopBackOff in the intelligent-sre namespace"
 
   # Critical incident — opus for maximum capability
-  python -m intelligent_sre_mcp.sre_agent --model opus \\
+  python -m intelligent_sre_agent.sre_agent --model opus \\
       "Database connection pool exhausted, 100% error rate"
 
   # Point to a custom cluster
-  python -m intelligent_sre_mcp.sre_agent \\
+  python -m intelligent_sre_agent.sre_agent \\
       --api-url http://my-cluster-nodeport:30080 \\
       "Check health"
 
   # Persistent model selection via env var
   export SRE_MODEL=sonnet
-  python -m intelligent_sre_mcp.sre_agent "Investigate latency spike"
+  python -m intelligent_sre_agent.sre_agent "Investigate latency spike"
 """,
     )
     parser.add_argument(
@@ -1082,7 +1082,7 @@ Examples:
         "--api-url",
         default=os.getenv("API_URL", "http://localhost:30080"),
         metavar="URL",
-        help="intelligent-sre-mcp API base URL (default: %(default)s)",
+        help="intelligent-sre-agent API base URL (default: %(default)s)",
     )
     parser.add_argument(
         "--model",

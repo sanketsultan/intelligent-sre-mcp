@@ -20,15 +20,15 @@ volumes:
 
 services:
   # ---------------------------------------------------------------------------
-  # intelligent-sre-mcp API
+  # intelligent-sre-agent API
   # ---------------------------------------------------------------------------
   api:
     build:
       context: .
       dockerfile: Dockerfile
       target: final
-    image: intelligent-sre-mcp:latest
-    container_name: intelligent-sre-mcp
+    image: intelligent-sre-agent:latest
+    container_name: intelligent-sre-agent
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -37,7 +37,7 @@ services:
       OTLP_ENDPOINT: "http://otel-collector:4317"
       ENABLE_TRACING: "${ENABLE_TRACING:-false}"
       REQUEST_TIMEOUT: "${REQUEST_TIMEOUT:-10}"
-      SERVICE_NAME: "intelligent-sre-mcp"
+      SERVICE_NAME: "intelligent-sre-agent"
       ACTION_HISTORY_DB: "postgresql://${POSTGRES_USER:-sre}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-sre}"
     depends_on:
       postgres:

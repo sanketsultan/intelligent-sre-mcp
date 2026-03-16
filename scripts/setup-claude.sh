@@ -19,7 +19,7 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 cat > "$CONFIG_FILE" << EOF
 {
   "mcpServers": {
-    "intelligent-sre-mcp": {
+    "intelligent-sre-agent": {
       "command": "$PROJECT_DIR/setup/run_mcp_api.sh",
       "args": [],
       "env": {

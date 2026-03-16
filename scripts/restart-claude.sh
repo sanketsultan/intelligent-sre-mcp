@@ -41,10 +41,10 @@ CONFIG_FILE="$HOME/Library/Application Support/Claude/claude_desktop_config.json
 if [ -f "$CONFIG_FILE" ]; then
     echo -e "${GREEN}✓ Config file exists${NC}"
     
-    if grep -q "intelligent-sre-mcp" "$CONFIG_FILE"; then
-        echo -e "${GREEN}✓ intelligent-sre-mcp is configured${NC}"
+    if grep -q "intelligent-sre-agent" "$CONFIG_FILE"; then
+        echo -e "${GREEN}✓ intelligent-sre-agent is configured${NC}"
     else
-        echo -e "${RED}✗ intelligent-sre-mcp not found in config${NC}"
+        echo -e "${RED}✗ intelligent-sre-agent not found in config${NC}"
         exit 1
     fi
     

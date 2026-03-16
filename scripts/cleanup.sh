@@ -57,7 +57,7 @@ echo "  • Prometheus data"
 echo "  • Grafana data"
 echo "  • All monitoring components"
 echo ""
-echo "Docker image 'intelligent-sre-mcp:latest' and Claude Desktop config will NOT be removed."
+echo "Docker image 'intelligent-sre-agent:latest' and Claude Desktop config will NOT be removed."
 echo ""
 read -p "Are you sure you want to continue? (yes/no): " -r
 echo ""
@@ -75,7 +75,7 @@ cd "$PROJECT_DIR"
 print_step "Step 1/3: Removing Kubernetes resources..."
 
 # Delete individual resources first (for cleaner output)
-kubectl delete -f k8s/intelligent-sre-mcp.yaml --ignore-not-found=true >/dev/null 2>&1
+kubectl delete -f k8s/intelligent-sre-agent.yaml --ignore-not-found=true >/dev/null 2>&1
 print_success "Intelligent SRE MCP API removed"
 
 kubectl delete -f k8s/demo-metrics.yaml --ignore-not-found=true >/dev/null 2>&1
@@ -165,13 +165,13 @@ echo "✓ All Kubernetes resources removed"
 echo "✓ Namespace 'intelligent-sre' deleted"
 echo ""
 echo "📦 Still present (not removed):"
-echo "   • Docker image: intelligent-sre-mcp:latest"
+echo "   • Docker image: intelligent-sre-agent:latest"
 echo "   • Claude Desktop config: ~/Library/Application Support/Claude/claude_desktop_config.json"
 echo "   • Python virtual environment: .venv/"
 echo "   • Source code and manifests"
 echo ""
 echo "🗑️  To remove Docker image:"
-echo "   docker rmi intelligent-sre-mcp:latest"
+echo "   docker rmi intelligent-sre-agent:latest"
 echo ""
 echo "🔧 To remove Claude Desktop config:"
 echo "   rm ~/Library/Application\\ Support/Claude/claude_desktop_config.json"

@@ -7,7 +7,7 @@ from mcp.server.fastmcp import FastMCP
 API_URL = os.getenv("API_URL", "http://localhost:30080").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 
-mcp = FastMCP("intelligent-sre-mcp-client")
+mcp = FastMCP("intelligent-sre-agent-client")
 
 
 @mcp.tool()

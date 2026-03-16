@@ -80,7 +80,7 @@ jobs:
           # treat that as success until unit tests are added.
           pytest tests/unit/ \
             -m "not integration" \
-            --cov=src/intelligent_sre_mcp \
+            --cov=src/intelligent_sre_agent \
             --cov-report=xml \
             --cov-report=term-missing \
             -v \
@@ -140,7 +140,7 @@ jobs:
         with:
           context: .
           push: false
-          tags: intelligent-sre-mcp:ci
+          tags: intelligent-sre-agent:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Fail if the image has any CRITICAL vulnerabilities
@@ -150,7 +150,7 @@ jobs:
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: intelligent-sre-mcp:ci
+          image-ref: intelligent-sre-agent:ci
           format: table
           exit-code: "0"        # warn but don't block; change to "1" to block
           ignore-unfixed: true

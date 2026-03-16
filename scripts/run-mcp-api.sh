@@ -8,7 +8,7 @@ export PYTHONPATH="$PROJECT_DIR/src"
 
 PYTHON_BIN="$PROJECT_DIR/.venv/bin/python"
 if [[ -x "$PYTHON_BIN" ]]; then
-	exec "$PYTHON_BIN" -m intelligent_sre_mcp.api_client
+	exec "$PYTHON_BIN" -m intelligent_sre_agent.api_client
 fi
 
-exec python3 -m intelligent_sre_mcp.api_client
+exec python3 -m intelligent_sre_agent.api_client

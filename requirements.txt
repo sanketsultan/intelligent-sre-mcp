@@ -1,4 +1,4 @@
-# Project dependencies for intelligent-sre-mcp
+# Project dependencies for intelligent-sre-agent
 # Version ranges: minimum known-good, upper bound blocks major breaking changes
 
 anthropic>=0.40,<1

@@ -6,7 +6,7 @@ metadata:
 data:
   falco.yaml: |
     # ---------------------------------------------------------------------------
-    # Falco configuration for intelligent-sre-mcp
+    # Falco configuration for intelligent-sre-agent
     # ---------------------------------------------------------------------------
 
     rules_file:

@@ -17,7 +17,7 @@ data:
         {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.0"}
       ],
       "annotations": {"list": []},
-      "description": "DORA Key Metrics – intelligent-sre-mcp",
+      "description": "DORA Key Metrics – intelligent-sre-agent",
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -303,7 +303,7 @@ data:
       "time": {"from": "now-24h", "to": "now"},
       "timepicker": {},
       "timezone": "browser",
-      "title": "DORA Metrics – intelligent-sre-mcp",
+      "title": "DORA Metrics – intelligent-sre-agent",
       "uid": "intelligent-sre-dora",
       "version": 1
     }

@@ -34,7 +34,7 @@ spec:
           protocol: TCP
 
 ---
-# 3. intelligent-sre-mcp – ingress from any pod in the namespace + NodePort traffic
+# 3. intelligent-sre-agent – ingress from any pod in the namespace + NodePort traffic
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -43,7 +43,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: intelligent-sre-mcp
+      app: intelligent-sre-agent
   policyTypes:
     - Ingress
   ingress:
@@ -54,7 +54,7 @@ spec:
               kubernetes.io/metadata.name: intelligent-sre
 
 ---
-# 4. intelligent-sre-mcp – egress to Prometheus, PostgreSQL, OTel collector
+# 4. intelligent-sre-agent – egress to Prometheus, PostgreSQL, OTel collector
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -63,7 +63,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: intelligent-sre-mcp
+      app: intelligent-sre-agent
   policyTypes:
     - Egress
   egress:
@@ -92,7 +92,7 @@ spec:
         - port: 6443
 
 ---
-# 5. Prometheus – ingress from intelligent-sre-mcp and Grafana
+# 5. Prometheus – ingress from intelligent-sre-agent and Grafana
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -108,7 +108,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app: intelligent-sre-mcp
+              app: intelligent-sre-agent
         - podSelector:
             matchLabels:
               app: grafana
@@ -163,7 +163,7 @@ spec:
         - port: 9093
 
 ---
-# 7. PostgreSQL – ingress only from intelligent-sre-mcp
+# 7. PostgreSQL – ingress only from intelligent-sre-agent
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -179,7 +179,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app: intelligent-sre-mcp
+              app: intelligent-sre-agent
       ports:
         - port: 5432
 

@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from intelligent_sre_mcp.sre_agent import (
+from intelligent_sre_agent.sre_agent import (
     HEALING_TOOLS,
     INVESTIGATION_TOOLS,
     _call_api,
@@ -257,7 +257,7 @@ class TestCLI:
             patch("sys.argv", ["sre-agent", "check health"]),
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""}, clear=False),
             patch(
-                "intelligent_sre_mcp.sre_agent.run_sre_agent",
+                "intelligent_sre_agent.sre_agent.run_sre_agent",
                 side_effect=ValueError("ANTHROPIC_API_KEY"),
             ),
             pytest.raises(SystemExit) as exc_info,

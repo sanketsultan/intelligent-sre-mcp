@@ -17,7 +17,7 @@ data:
         {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.3.0"}
       ],
       "annotations": {"list": []},
-      "description": "Service Level Objectives – intelligent-sre-mcp",
+      "description": "Service Level Objectives – intelligent-sre-agent",
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -57,7 +57,7 @@ data:
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "prometheus"},
-              "expr": "100 * (1 - sum(increase(http_requests_total{job=\"intelligent-sre-mcp\",status=~\"5..\"}[30d])) / sum(increase(http_requests_total{job=\"intelligent-sre-mcp\"}[30d])))",
+              "expr": "100 * (1 - sum(increase(http_requests_total{job=\"intelligent-sre-agent\",status=~\"5..\"}[30d])) / sum(increase(http_requests_total{job=\"intelligent-sre-agent\"}[30d])))",
               "legendFormat": "Availability %",
               "refId": "A"
             }
@@ -171,19 +171,19 @@ data:
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "prometheus"},
-              "expr": "histogram_quantile(0.50, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-mcp\"}[5m])))",
+              "expr": "histogram_quantile(0.50, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-agent\"}[5m])))",
               "legendFormat": "p50",
               "refId": "A"
             },
             {
               "datasource": {"type": "prometheus", "uid": "prometheus"},
-              "expr": "histogram_quantile(0.95, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-mcp\"}[5m])))",
+              "expr": "histogram_quantile(0.95, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-agent\"}[5m])))",
               "legendFormat": "p95",
               "refId": "B"
             },
             {
               "datasource": {"type": "prometheus", "uid": "prometheus"},
-              "expr": "histogram_quantile(0.99, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-mcp\"}[5m])))",
+              "expr": "histogram_quantile(0.99, sum by(le)(rate(http_request_duration_seconds_bucket{job=\"intelligent-sre-agent\"}[5m])))",
               "legendFormat": "p99",
               "refId": "C"
             }
@@ -207,13 +207,13 @@ data:
           "targets": [
             {
               "datasource": {"type": "prometheus", "uid": "prometheus"},
-              "expr": "sum(rate(http_requests_total{job=\"intelligent-sre-mcp\"}[5m]))",
+              "expr": "sum(rate(http_requests_total{job=\"intelligent-sre-agent\"}[5m]))",
               "legendFormat": "total",
               "refId": "A"
             },
             {
               "datasource": {"type": "prometheus", "uid": "prometheus"},
-              "expr": "sum(rate(http_requests_total{job=\"intelligent-sre-mcp\",status=~\"5..\"}[5m]))",
+              "expr": "sum(rate(http_requests_total{job=\"intelligent-sre-agent\",status=~\"5..\"}[5m]))",
               "legendFormat": "5xx errors",
               "refId": "B"
             }
@@ -227,7 +227,7 @@ data:
       "time": {"from": "now-6h", "to": "now"},
       "timepicker": {},
       "timezone": "browser",
-      "title": "SLO Dashboard – intelligent-sre-mcp",
+      "title": "SLO Dashboard – intelligent-sre-agent",
       "uid": "intelligent-sre-slo",
       "version": 1
     }

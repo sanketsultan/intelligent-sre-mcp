@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   name: intelligent-sre
   labels:
-    app: intelligent-sre-mcp
+    app: intelligent-sre-agent
     # Pod Security Standards — CIS Kubernetes Benchmark "restricted" profile.
     # Requires: runAsNonRoot, no privilege escalation, seccompProfile RuntimeDefault,
     # drop ALL capabilities. All deployments in this repo already comply.

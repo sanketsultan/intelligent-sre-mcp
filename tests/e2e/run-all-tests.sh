@@ -211,18 +211,18 @@ test_infrastructure() {
     
     # Check deployment exists
     run_test_command "infrastructure" \
-        "intelligent-sre-mcp deployment exists" \
-        "kubectl get deployment intelligent-sre-mcp -n intelligent-sre > /dev/null"
+        "intelligent-sre-agent deployment exists" \
+        "kubectl get deployment intelligent-sre-agent -n intelligent-sre > /dev/null"
     
     # Check pods are running
     run_test_command "infrastructure" \
-        "intelligent-sre-mcp pods running" \
-        "kubectl get pods -n intelligent-sre -l app=intelligent-sre-mcp --field-selector=status.phase=Running | grep -q Running"
+        "intelligent-sre-agent pods running" \
+        "kubectl get pods -n intelligent-sre -l app=intelligent-sre-agent --field-selector=status.phase=Running | grep -q Running"
     
     # Check service exists
     run_test_command "infrastructure" \
-        "intelligent-sre-mcp service exists" \
-        "kubectl get service intelligent-sre-mcp -n intelligent-sre > /dev/null"
+        "intelligent-sre-agent service exists" \
+        "kubectl get service intelligent-sre-agent -n intelligent-sre > /dev/null"
     
     # Wait for API server to be ready
     wait_for_service "API Server" "http://localhost:30080/health"
@@ -293,7 +293,7 @@ test_phase2_detection() {
     
     run_test_command "detection" \
         "get_health_score - Specific pod" \
-        "curl -s 'http://localhost:30080/detection/health-score?namespace=intelligent-sre&pod_name=intelligent-sre-mcp' | jq -e '.health_score != null' > /dev/null"
+        "curl -s 'http://localhost:30080/detection/health-score?namespace=intelligent-sre&pod_name=intelligent-sre-agent' | jq -e '.health_score != null' > /dev/null"
     
     # Test correlation analysis
     run_test_command "detection" \
@@ -310,7 +310,7 @@ test_phase4_healing() {
     print_section "Phase 4: Self-Healing Actions (Dry-Run Mode)"
     
     # Get a test pod for healing actions
-    local test_pod=$(kubectl get pods -n intelligent-sre -l app=intelligent-sre-mcp -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "test-pod")
+    local test_pod=$(kubectl get pods -n intelligent-sre -l app=intelligent-sre-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "test-pod")
     
     # Test restart_pod (dry-run)
     run_test_command "healing" \
@@ -325,12 +325,12 @@ test_phase4_healing() {
     # Test scale_deployment (dry-run)
     run_test_command "healing" \
         "scale_deployment - Dry run" \
-        "curl -s -X POST -H 'Content-Type: application/json' -d '{\"namespace\":\"intelligent-sre\",\"deployment_name\":\"intelligent-sre-mcp\",\"replicas\":2,\"dry_run\":true}' http://localhost:30080/healing/scale-deployment | jq -e '.status == \"success\"' > /dev/null"
+        "curl -s -X POST -H 'Content-Type: application/json' -d '{\"namespace\":\"intelligent-sre\",\"deployment_name\":\"intelligent-sre-agent\",\"replicas\":2,\"dry_run\":true}' http://localhost:30080/healing/scale-deployment | jq -e '.status == \"success\"' > /dev/null"
     
     # Test rollback_deployment (dry-run)
     run_test_command "healing" \
         "rollback_deployment - Dry run" \
-        "curl -s -X POST -H 'Content-Type: application/json' -d '{\"namespace\":\"intelligent-sre\",\"deployment_name\":\"intelligent-sre-mcp\",\"dry_run\":true}' http://localhost:30080/healing/rollback-deployment | jq -e '.status == \"success\"' > /dev/null"
+        "curl -s -X POST -H 'Content-Type: application/json' -d '{\"namespace\":\"intelligent-sre\",\"deployment_name\":\"intelligent-sre-agent\",\"dry_run\":true}' http://localhost:30080/healing/rollback-deployment | jq -e '.status == \"success\"' > /dev/null"
     
     # Test node operations (dry-run)
     local test_node=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "test-node")
@@ -370,7 +370,7 @@ test_integration() {
     if [ -f "tests/test_healing_actions.py" ]; then
         run_test_command "integration" \
             "Python automated tests" \
-            "cd /Users/sanket/Desktop/intelligent-sre-mcp && python3 tests/test_healing_actions.py"
+            "cd /Users/sanket/Desktop/intelligent-sre-agent && python3 tests/test_healing_actions.py"
     else
         log_skip "test_healing_actions.py not found"
     fi

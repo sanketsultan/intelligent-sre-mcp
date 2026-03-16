@@ -20,7 +20,7 @@ Setup
      SLACK_APP_TOKEN  — App-Level Token      (xapp-...)
 7. Run::
 
-     python -m intelligent_sre_mcp.bot.slack_bot
+     python -m intelligent_sre_agent.bot.slack_bot
      # or
      ./scripts/run-slack-bot.sh
 
@@ -44,7 +44,7 @@ Environment Variables
   SLACK_BOT_TOKEN   — (required) Bot User OAuth Token (xoxb-...)
   SLACK_APP_TOKEN   — (required) App-Level Token for Socket Mode (xapp-...)
   ANTHROPIC_API_KEY — (required) Anthropic API key for Claude
-  API_URL           — intelligent-sre-mcp FastAPI base URL
+  API_URL           — intelligent-sre-agent FastAPI base URL
                       (default: http://localhost:30080)
   SLACK_CHANNEL     — default channel for alert notifications (optional)
 """
@@ -59,8 +59,8 @@ import sys
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from slack_bolt.async_app import AsyncApp
 
-from intelligent_sre_mcp.runbooks import list_runbooks
-from intelligent_sre_mcp.sre_agent import run_sre_agent
+from intelligent_sre_agent.runbooks import list_runbooks
+from intelligent_sre_agent.sre_agent import run_sre_agent
 
 logger = logging.getLogger(__name__)
 
@@ -290,7 +290,7 @@ async def _send_help(say) -> None:
         "`/sre runbooks` — List all structured runbooks\n\n"
         "`@SRE-Bot <prompt>` — Mention to trigger an investigation\n"
         "  Add `--remediate` flag: `@SRE-Bot --remediate Pods crashing`\n\n"
-        "_Powered by Claude - intelligent-sre-mcp_"
+        "_Powered by Claude - intelligent-sre-agent_"
     )
     await say(text=help_text)
 

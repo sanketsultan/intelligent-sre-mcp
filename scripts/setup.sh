@@ -108,8 +108,8 @@ echo ""
 
 # --- Build Docker image ---
 info "Step 1/4: Building Docker image"
-docker build -t intelligent-sre-mcp:latest . >/dev/null 2>&1
-success "Docker image built: intelligent-sre-mcp:latest"
+docker build -t intelligent-sre-agent:latest . >/dev/null 2>&1
+success "Docker image built: intelligent-sre-agent:latest"
 echo ""
 
 # --- Deploy to Kubernetes ---
@@ -160,7 +160,7 @@ else
     .venv/bin/python -m pip install -q -r requirements.txt
     .venv/bin/python -m pip install -q .
     success "Virtual environment recreated with $PYTHON_CMD"
-  elif ! .venv/bin/python -c "import intelligent_sre_mcp" 2>/dev/null; then
+  elif ! .venv/bin/python -c "import intelligent_sre_agent" 2>/dev/null; then
     .venv/bin/python -m pip install -q .
     success "Package installed into existing venv"
   else
@@ -178,6 +178,6 @@ echo "  Alertmanager:http://localhost:30093"
 echo ""
 echo "Next steps:"
 echo "  - Set ANTHROPIC_API_KEY in .env to use the SRE agent"
-echo "  - Run: source .venv/bin/activate && python -m intelligent_sre_mcp.sre_agent 'health check'"
+echo "  - Run: source .venv/bin/activate && python -m intelligent_sre_agent.sre_agent 'health check'"
 echo "  - To stop: kubectl delete -k k8s/overlays/dev"
 echo ""

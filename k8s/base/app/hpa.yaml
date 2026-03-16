@@ -1,18 +1,18 @@
-# HorizontalPodAutoscaler for the intelligent-sre-mcp API server.
+# HorizontalPodAutoscaler for the intelligent-sre-agent API server.
 # Scales between 1 and 3 replicas based on CPU utilisation.
 # Requires metrics-server to be installed in the cluster.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: intelligent-sre-mcp
+  name: intelligent-sre-agent
   namespace: intelligent-sre
   labels:
-    app: intelligent-sre-mcp
+    app: intelligent-sre-agent
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: intelligent-sre-mcp
+    name: intelligent-sre-agent
   minReplicas: 1
   maxReplicas: 3
   metrics:
