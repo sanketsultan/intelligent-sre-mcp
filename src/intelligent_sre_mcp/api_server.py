@@ -796,12 +796,13 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
         investigation_ctx += "\n[... truncated for cost efficiency ...]"
     remediation_prompt = (
         f"{prompt}\n\n"
-        f"PHASE 1 INVESTIGATION COMPLETE. FINDINGS:\n{investigation_ctx}\n\n"
-        f"Proceed directly to Phase 2 remediation. Do NOT re-investigate. "
-        f"For every broken deployment identified above, call patch_deployment immediately "
-        f"with the correct fix (remove nodeSelector, fix readinessProbe, fix env var, etc). "
-        f"Each deployment has its own independent cooldown — patch all of them in sequence "
-        f"without waiting. Do NOT scale to zero. Do NOT ask for confirmation. Execute now."
+        f"PHASE 1 FINDINGS (do not re-investigate):\n{investigation_ctx}\n\n"
+        f"Phase 2: patch every broken deployment now. "
+        f"Call patch_deployment for each one in sequence — each has its own cooldown. "
+        f"Do NOT scale to zero. Do NOT ask for confirmation. "
+        f"After patching call get_deployment_status to confirm. "
+        f"Output: one line per deployment: '<name>: FIXED' or '<name>: FAILED — <reason>'. "
+        f"No other text."
     )
     try:
         remediation = await run_sre_agent(
