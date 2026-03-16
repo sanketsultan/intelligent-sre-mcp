@@ -104,6 +104,43 @@ Healing tool priority: `patch_deployment` (fix config) > `rollback_deployment` (
 
 New endpoint: `POST /healing/patch-deployment` — applies a K8s strategic merge patch to fix a deployment in place without stopping it.
 
+## Token cost tuning
+
+Every agent run logs actual token usage + estimated cost.
+CLI output: `[tokens] input=1243  output=312  cost~=$0.00504  model=claude-sonnet-4-5`
+K8s log (JSON): `{"msg":"SRE agent finished","input_tokens":1243,"output_tokens":312,"estimated_cost_usd":0.005043}`
+
+### Pricing reference (per million tokens)
+| Model | Input | Output | Typical cost/run |
+|---|---|---|---|
+| `claude-haiku-4-5` | $0.25 | $1.25 | ~$0.001 — routine checks (default Phase 1) |
+| `claude-sonnet-4-5` | $3.00 | $15.00 | ~$0.005–$0.05 — remediation (default Phase 2) |
+| `claude-opus-4-6` | $15.00 | $75.00 | ~$0.10 — critical incidents only |
+
+### Cost levers (env vars in `k8s/base/app/intelligent-sre-mcp.yaml`)
+| Var | Default | Effect |
+|---|---|---|
+| `SRE_MODEL` | `claude-haiku-4-5` | Phase 1 investigation model — cheapest, fast |
+| `SRE_REMEDIATION_MODEL` | `claude-sonnet-4-5` | Phase 2 remediation model — more capable |
+| `SRE_MAX_TOKENS` | `4096` | Output token ceiling — you pay for tokens generated, not this limit |
+| `SRE_INVESTIGATION_CTX_CHARS` | `3000` | Max chars of Phase 1 text embedded in Phase 2 prompt — cuts sonnet input tokens |
+
+### Quick tuning
+```bash
+# Cheapest possible (investigation only, no remediation):
+kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_MODEL=haiku
+
+# More aggressive context truncation (smaller Phase 2 input):
+kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_INVESTIGATION_CTX_CHARS=1500
+
+# Raise output ceiling if remediation_summary looks cut off:
+kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_MAX_TOKENS=6144
+
+# CLI: see real token cost per run
+python -m intelligent_sre_mcp.sre_agent "check health"
+# prints: [tokens] input=842  output=201  cost~=$0.00028  model=claude-haiku-4-5
+```
+
 ## Slash commands
 - `/lint` — ruff check + format, auto-fix all issues
 - `/test` — run pytest, fix failures

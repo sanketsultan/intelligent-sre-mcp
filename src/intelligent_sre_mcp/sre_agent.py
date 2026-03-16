@@ -931,6 +931,10 @@ async def run_sre_agent(
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     final_text = ""
 
+    # Accumulate token usage across all turns (each tool-call loop = one API call).
+    total_input_tokens = 0
+    total_output_tokens = 0
+
     async with httpx.AsyncClient(base_url=api_base, timeout=30.0) as http:
         while True:
             # Stream the response so text appears incrementally
@@ -945,6 +949,11 @@ async def run_sre_agent(
                     print(text, end="", flush=True)
 
                 response = await stream.get_final_message()
+
+            # Accumulate token counts from this turn.
+            if response.usage:
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
 
             if response.stop_reason == "end_turn":
                 print()  # trailing newline
@@ -982,7 +991,30 @@ async def run_sre_agent(
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
 
-    logger.info("SRE agent finished | mode=%s", mode)
+    # Per-million-token pricing (input, output).  Update when Anthropic changes prices.
+    _PRICE_PER_MTok: dict[str, tuple[float, float]] = {
+        "claude-haiku-4-5": (0.25, 1.25),
+        "claude-sonnet-4-5": (3.00, 15.00),
+        "claude-opus-4-6": (15.00, 75.00),
+    }
+    in_price, out_price = _PRICE_PER_MTok.get(resolved_model, (3.00, 15.00))
+    cost_usd = (total_input_tokens * in_price + total_output_tokens * out_price) / 1_000_000
+
+    logger.info(
+        "SRE agent finished",
+        extra={
+            "mode": mode,
+            "model": resolved_model,
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "estimated_cost_usd": round(cost_usd, 6),
+        },
+    )
+    # Also print for CLI users so cost is visible without parsing JSON logs.
+    print(
+        f"\n[tokens] input={total_input_tokens}  output={total_output_tokens}"
+        f"  cost~=${cost_usd:.5f}  model={resolved_model}"
+    )
     return final_text
 
 
