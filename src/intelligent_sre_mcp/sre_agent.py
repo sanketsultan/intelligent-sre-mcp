@@ -917,6 +917,7 @@ async def run_sre_agent(
     remediate: bool = False,
     api_base: str = "http://localhost:30080",
     api_key: str | None = None,
+    max_tokens: int = 8192,
     model: str = DEFAULT_MODEL,
     verbose: bool = False,
 ) -> str:
@@ -963,7 +964,7 @@ async def run_sre_agent(
             # Stream the response so text appears incrementally
             async with claude.messages.stream(
                 model=resolved_model,
-                max_tokens=4096,
+                max_tokens=max_tokens,
                 system=SYSTEM_PROMPT,
                 tools=tools,
                 messages=messages,

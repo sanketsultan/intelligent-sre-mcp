@@ -775,13 +775,16 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
 
     # Phase 2: remediation — pass Phase 1 findings as context so the agent
     # skips redundant re-investigation and goes straight to healing actions.
+    # Each deployment has its own independent rate-limit cooldown, so all broken
+    # deployments can be patched sequentially in a single agent pass.
     remediation_prompt = (
         f"{prompt}\n\n"
         f"PHASE 1 INVESTIGATION COMPLETE. FINDINGS:\n{investigation}\n\n"
-        f"Proceed directly to Phase 2 remediation. "
-        f"The investigation is already done — call the appropriate healing tools "
-        f"(scale_deployment, delete_failed_pods, restart_pod) immediately. "
-        f"Do NOT re-investigate. Do NOT ask for confirmation. Execute now."
+        f"Proceed directly to Phase 2 remediation. Do NOT re-investigate. "
+        f"For every broken deployment identified above, call patch_deployment immediately "
+        f"with the correct fix (remove nodeSelector, fix readinessProbe, fix env var, etc). "
+        f"Each deployment has its own independent cooldown — patch all of them in sequence "
+        f"without waiting. Do NOT scale to zero. Do NOT ask for confirmation. Execute now."
     )
     try:
         remediation = await run_sre_agent(
@@ -789,6 +792,7 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
             remediate=True,
             api_base=API_URL,
             model=SRE_REMEDIATION_MODEL,
+            max_tokens=8192,
         )
         alert_store.update_remediation(
             alert_id, remediation or "No remediation output returned."

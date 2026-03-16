@@ -167,21 +167,42 @@ success "Alert saved (id=${ALERT_ID}). Agent is running in the background..."
 # 5. Wait for agent to complete investigation + remediation
 # ---------------------------------------------------------------------------
 sep
-info "Step 5/6: Waiting ${WAIT_FOR_AGENT}s for SRE agent to investigate and remediate..."
-echo "(The agent runs two passes: Phase 1 investigation, then Phase 2 remediation)"
+info "Step 5/6: Waiting for SRE agent (max ${WAIT_FOR_AGENT}s)..."
+echo "(Phase 1 investigation runs first, then Phase 2 remediation)"
+echo "(Polling stops early when remediation_summary is saved to DB)"
 echo ""
 
 ELAPSED=0
 INTERVAL=15
+REMEDIATION_DONE=0
 while [ "${ELAPSED}" -lt "${WAIT_FOR_AGENT}" ]; do
   printf "  [%3ds] Pod status: " "${ELAPSED}"
   kubectl get pods -n "${NAMESPACE}" -l "${CHAOS_LABEL}" \
     --no-headers -o custom-columns='X:.metadata.name,Y:.status.phase' 2>/dev/null \
     | tr '\n' '  ' || true
   echo ""
+
+  # Stop polling once the agent has saved a remediation_summary to the DB.
+  # This avoids printing stale results before Phase 2 finishes.
+  if [ "${ALERT_ID}" != "unknown" ] && [ "${REMEDIATION_DONE}" -eq 0 ]; then
+    REM=$(curl -sf "${API_URL}/alerts/${ALERT_ID}" 2>/dev/null \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); print('done' if d.get('remediation_summary') else 'pending')" 2>/dev/null || echo "pending")
+    if [ "${REM}" = "done" ]; then
+      echo ""
+      success "Remediation complete (remediation_summary saved). Proceeding to results..."
+      REMEDIATION_DONE=1
+      break
+    fi
+  fi
+
   sleep "${INTERVAL}"
   ELAPSED=$((ELAPSED + INTERVAL))
 done
+
+if [ "${REMEDIATION_DONE}" -eq 0 ]; then
+  echo ""
+  echo "Warning: timeout reached (${WAIT_FOR_AGENT}s). Agent may still be running."
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Show AFTER state
