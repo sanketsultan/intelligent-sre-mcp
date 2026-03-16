@@ -285,6 +285,17 @@ class AlertStore:
             rows = cursor.fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    def count_by_status(self) -> Dict[str, int]:
+        """Return alert counts grouped by status (firing / resolved).
+
+        Used by the dashboard aggregate endpoint to avoid fetching full rows.
+        """
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT status, COUNT(*) FROM alerts GROUP BY status")
+            rows = cursor.fetchall()
+        return {row[0]: row[1] for row in rows}
+
     # ------------------------------------------------------------------
     # Row mapper
     # ------------------------------------------------------------------

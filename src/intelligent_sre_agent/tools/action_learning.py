@@ -569,7 +569,7 @@ class ActionHistoryStore:
         with self._connect() as conn:
             cursor = conn.cursor()
             query = (
-                "SELECT id, created_at, title, namespace, resource, severity, status, summary, last_updated "
+                "SELECT id, created_at, title, namespace, resource, severity, status, summary, fingerprint, last_updated "
                 "FROM problems "
                 f"WHERE created_at >= {self.placeholder} "
                 "ORDER BY last_updated DESC "
