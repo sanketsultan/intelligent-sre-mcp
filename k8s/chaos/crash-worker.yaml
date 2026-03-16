@@ -1,7 +1,18 @@
 ---
-# crash-worker: simulates an application that exits with a non-zero exit code.
-# Result: CrashLoopBackOff — K8s keeps restarting it with exponential back-off.
-# Agent fix: delete_failed_pods to clear backoff, then scale to 0 to stop the loop.
+# crash-worker: simulates a misconfigured deployment where a bad env var causes
+# the application to crash on every startup.
+#
+# Failure mode: CrashLoopBackOff — SIMULATE_CRASH=true makes the process exit 1.
+# This is realistic: a wrong feature-flag or secret value causes app crashes.
+#
+# Agent fix (preferred): patch_deployment to set SIMULATE_CRASH=false.
+#   patch: {"spec":{"template":{"spec":{"containers":[{"name":"crash-worker",
+#           "env":[{"name":"SIMULATE_CRASH","value":"false"}]}]}}}}
+# After the patch K8s replaces pods with the corrected config -> Running/Ready.
+#
+# Secondary effect: crash-worker-svc has no ready endpoints while pods crash,
+# so dependent-worker's init container fails (cascading failure).
+# dependent-worker recovers automatically once crash-worker becomes healthy.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,6 +22,10 @@ metadata:
     app: crash-worker
     chaos-test: "true"
     failure-mode: crash-loop
+  annotations:
+    # Hint for the SRE agent: documents what the correct fix is.
+    sre.io/failure-cause: "SIMULATE_CRASH env var set to true — patch it to false"
+    sre.io/fix-patch: '{"spec":{"template":{"spec":{"containers":[{"name":"crash-worker","env":[{"name":"SIMULATE_CRASH","value":"false"}]}]}}}}'
 spec:
   replicas: 2
   selector:
@@ -32,14 +47,26 @@ spec:
       containers:
         - name: crash-worker
           image: busybox:1.36
+          env:
+            # Set to "false" to fix the deployment (the agent patches this).
+            - name: SIMULATE_CRASH
+              value: "true"
           command:
             - sh
             - -c
             - |
               echo "crash-worker: starting up..."
-              sleep 3
-              echo "crash-worker: fatal error — database connection refused"
-              exit 1
+              sleep 2
+              if [ "${SIMULATE_CRASH}" = "true" ]; then
+                echo "crash-worker: SIMULATE_CRASH=true — exiting with error"
+                exit 1
+              fi
+              echo "crash-worker: SIMULATE_CRASH=false — running normally"
+              # Serve a minimal HTTP response so dependent-worker's wget succeeds.
+              while true; do
+                echo -e "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK" \
+                  | nc -l -p 8080 -q 1 2>/dev/null || sleep 1
+              done
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -53,8 +80,10 @@ spec:
               cpu: 50m
               memory: 64Mi
 ---
-# Service for crash-worker — will have no ready endpoints since the pod never
-# stays Running. dependent-worker tries to reach this and fails (the cascade).
+# Service for crash-worker — will have no ready endpoints while pods are crashing.
+# dependent-worker's init container tries to reach this, causing the cascade.
+# Once crash-worker is fixed and pods become Ready, this service gets endpoints
+# and dependent-worker's init container can succeed on retry.
 apiVersion: v1
 kind: Service
 metadata:

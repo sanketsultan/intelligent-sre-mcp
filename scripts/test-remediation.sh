@@ -10,11 +10,15 @@
 #   6. Prints the "after" state and the agent's investigation/remediation from the DB
 #   7. Cleans up all chaos resources
 #
-# Failure modes simulated:
-#   crash-worker     CrashLoopBackOff   app exits with code 1
-#   dependent-worker Init:Error         cascading — blocked by crash-worker being down
-#   pending-worker   Pending            requests 100 CPU cores, impossible to schedule
-#   sick-api         Running/NotReady   readiness probe always fails (port not open)
+# Failure modes simulated (all fixable via patch_deployment, not just scale-to-zero):
+#   crash-worker     CrashLoopBackOff   SIMULATE_CRASH=true env var causes exit 1
+#                                       Fix: patch env var to false
+#   dependent-worker Init:Error         cascading — init container blocked by crash-worker
+#                                       Fix: auto-recovers once crash-worker is healthy
+#   pending-worker   Pending            impossible nodeSelector (hardware-accelerator=a100-gpu)
+#                                       Fix: patch nodeSelector to null
+#   sick-api         Running/NotReady   readiness probe targets port 9999 (not listening)
+#                                       Fix: patch readinessProbe to null
 #
 # Usage:
 #   export ANTHROPIC_API_KEY=sk-ant-...
@@ -140,7 +144,7 @@ ALERT_PAYLOAD=$(cat <<EOF
       },
       "annotations": {
         "summary": "Cascading pod failures detected in ${NAMESPACE}",
-        "description": "Multiple pods are in failure states: crash-worker is in CrashLoopBackOff (app exits with code 1), dependent-worker is stuck in Init:Error because its upstream crash-worker-svc has no ready endpoints (cascading failure), pending-worker cannot be scheduled due to impossible CPU resource request (100 cores), and sick-api is Running but never Ready because its readiness probe always fails. Investigate and remediate all affected deployments."
+        "description": "Multiple pods are in failure states requiring root-cause fixes (not just scaling to zero): crash-worker is in CrashLoopBackOff because SIMULATE_CRASH env var is set to true — fix by patching the env var to false; dependent-worker is stuck in Init:Error because crash-worker-svc has no ready endpoints (cascading failure — will auto-recover once crash-worker is fixed); pending-worker cannot be scheduled because nodeSelector hardware-accelerator=a100-gpu matches no nodes — fix by patching nodeSelector to null; sick-api is Running but never Ready because its readiness probe targets port 9999 which is not open — fix by patching readinessProbe to null. For each issue use patch_deployment to fix the configuration and make the pod Running and Ready, not just scale to zero."
       },
       "startsAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
       "generatorURL": "http://prometheus:9090/graph"
@@ -185,15 +189,36 @@ done
 sep
 info "Step 6/6: System state AFTER remediation"
 echo ""
-echo "Chaos pods:"
-kubectl get pods -n "${NAMESPACE}" -l "${CHAOS_LABEL}" 2>/dev/null \
-  || echo "(pods may have been scaled to 0 or deleted by the agent)"
+echo "Chaos pods (goal: all Running and Ready, not scaled to zero):"
+kubectl get pods -n "${NAMESPACE}" -l "${CHAOS_LABEL}" \
+  -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,READY:.status.containerStatuses[0].ready,RESTARTS:.status.containerStatuses[0].restartCount' \
+  2>/dev/null || echo "(no chaos pods found)"
 
 echo ""
-echo "Deployment replicas (0 = agent scaled down to stop failure):"
+echo "Deployment readiness (READY should equal DESIRED — not 0/0):"
 kubectl get deployments -n "${NAMESPACE}" -l "${CHAOS_LABEL}" \
-  -o custom-columns='NAME:.metadata.name,DESIRED:.spec.replicas,READY:.status.readyReplicas' \
+  -o custom-columns='NAME:.metadata.name,DESIRED:.spec.replicas,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas' \
   2>/dev/null || true
+
+echo ""
+echo "Summary — pass criteria:"
+FIXED=0
+TOTAL=0
+for deploy in crash-worker pending-worker sick-api dependent-worker; do
+  TOTAL=$((TOTAL + 1))
+  READY=$(kubectl get deployment "${deploy}" -n "${NAMESPACE}" \
+    -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+  DESIRED=$(kubectl get deployment "${deploy}" -n "${NAMESPACE}" \
+    -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+  if [ "${READY:-0}" -gt 0 ] && [ "${DESIRED:-0}" -gt 0 ]; then
+    echo "  PASS  ${deploy}: ${READY}/${DESIRED} replicas Ready"
+    FIXED=$((FIXED + 1))
+  else
+    echo "  FAIL  ${deploy}: ${READY:-0}/${DESIRED:-0} replicas Ready"
+  fi
+done
+echo ""
+echo "Result: ${FIXED}/${TOTAL} deployments fully remediated (Running and Ready)"
 
 echo ""
 echo "All pods in namespace (health overview):"

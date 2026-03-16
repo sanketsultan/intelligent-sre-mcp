@@ -542,6 +542,31 @@ def rollback_deployment(
     return result
 
 
+class PatchDeploymentRequest(BaseModel):
+    namespace: str
+    deployment_name: str
+    patch: Dict[str, Any]
+    dry_run: bool = False
+
+
+@app.post("/healing/patch-deployment")
+def patch_deployment_endpoint(req: PatchDeploymentRequest):
+    """Apply a strategic merge patch to fix a deployment's configuration.
+
+    Use to repair the root cause instead of emergency-stopping the pod:
+      - Remove an impossible nodeSelector keeping pods Pending
+      - Fix/remove a readiness probe pointing at the wrong port
+      - Update a container command or env var that causes CrashLoopBackOff
+      - Fix resource requests that violate a LimitRange
+
+    Body JSON: {"namespace": "...", "deployment_name": "...", "patch": {...}, "dry_run": false}
+    """
+    result = healing_actions.patch_deployment(
+        req.namespace, req.deployment_name, req.patch, req.dry_run
+    )
+    return result
+
+
 @app.post("/healing/cordon-node")
 def cordon_node(node_name: str, dry_run: bool = False):
     """

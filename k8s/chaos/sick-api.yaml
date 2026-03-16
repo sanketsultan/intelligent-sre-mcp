@@ -5,7 +5,9 @@
 # httpGet readiness probe always gets "connection refused".
 # Result: Pod shows Running but 0/1 Ready — never receives traffic, never enters
 #         service endpoints. Causes downstream timeouts for anything calling sick-api-svc.
-# Agent fix: identify probe failure, check logs, scale to 0.
+# Agent fix (preferred): patch_deployment to remove the broken readiness probe.
+#   patch: {"spec":{"template":{"spec":{"containers":[{"name":"sick-api","readinessProbe":null}]}}}}
+# After the patch Kubernetes removes the probe and the pod immediately becomes Ready.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

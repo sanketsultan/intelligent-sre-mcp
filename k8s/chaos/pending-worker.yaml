@@ -3,7 +3,9 @@
 # because it requires a node with a hardware label that does not exist in the cluster.
 # Result: Pod stays Pending forever — scheduler finds no matching node.
 # K8s event: "0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector."
-# Agent fix: identify the impossible nodeSelector, scale to 0.
+# Agent fix (preferred): patch_deployment to remove the impossible nodeSelector.
+#   patch: {"spec":{"template":{"spec":{"nodeSelector":null}}}}
+# After the patch the scheduler can place the pod and it becomes Running/Ready.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

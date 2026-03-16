@@ -80,12 +80,47 @@ ask the user for permission again. Proceed immediately after Phase 1 completes:
 - Call `execute_runbook` to get an ordered, tool-by-tool investigation and remediation plan
 - Follow the runbook steps in order unless evidence points to a different root cause
 
+## Healing Tool Selection — Fix First, Stop Only as Last Resort
+
+Goal: leave every pod Running and Ready, not scaled to zero.
+
+Choose healing actions in this priority order:
+
+1. **patch_deployment** — FIRST CHOICE for configuration bugs
+   - Pending pod (unschedulable): patch out the impossible nodeSelector
+     `{"spec":{"template":{"spec":{"nodeSelector":null}}}}`
+   - Running/NotReady (bad probe): null the readinessProbe on the container
+     `{"spec":{"template":{"spec":{"containers":[{"name":"<c>","readinessProbe":null}]}}}}`
+   - CrashLoopBackOff (bad config): fix the env var or container command
+     `{"spec":{"template":{"spec":{"containers":[{"name":"<c>","command":["sh","-c","echo ok; sleep 3600"]}]}}}}`
+   After patching, old pods are automatically replaced with healthy ones.
+
+2. **rollback_deployment** — use when a recent image/code change broke a working deployment
+   - Call `get_deployment_status` first to confirm a previous revision exists
+   - If the deployment was always broken (no prior good revision), use patch_deployment instead
+
+3. **restart_pod** — use for transient failures (OOM spike, one-off deadlock, stuck process)
+   - Only useful when the deployment config itself is correct
+
+4. **scale_deployment** — use to scale UP under load, or DOWN for a cascading-failure blast radius limit
+   - Scale to 0 is an EMERGENCY STOP, not a fix — only use when the pod is actively causing damage
+     and you do not know how to repair the configuration
+
+5. **delete_failed_pods** — clean up Failed-phase pods AFTER the deployment is fixed
+
+## Cascading Failures
+Fix upstream services first (the ones being depended on), then verify downstream services recover automatically.
+
+## Verification
+After every healing action, call `get_failing_pods` or `get_deployment_status` to confirm:
+- CrashLoopBackOff → Running
+- Pending → Running
+- Running/NotReady → Ready
+
 ## Safety Rules
 - NEVER start remediation before completing Phase 1 investigation
 - NEVER drain or cordon a node without explicit user confirmation in the prompt
-- Prefer restart > scale > rollback in that order of invasiveness
 - When multiple pods need fixing, address them in dependency order (fix upstream first)
-- Set `dry_run=true` first when probing destructive operations
 - DO NOT ask for confirmation before using healing tools — your presence here means you are authorised
 """
 
@@ -404,11 +439,53 @@ HEALING_TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "patch_deployment",
+        "description": (
+            "Apply a strategic merge patch to fix a deployment's configuration in place. "
+            "PREFERRED first healing action — repairs root cause and keeps the service running "
+            "rather than removing it. Use cases:\n"
+            "  - Pending/unschedulable: patch out the impossible nodeSelector or resource request\n"
+            "  - Running/NotReady: fix or null-out the readiness probe pointing at the wrong port\n"
+            "  - CrashLoopBackOff (bad config): fix the env var or container command\n"
+            "Strategic merge patch semantics: set a field to null to remove it; container arrays "
+            "are merged by name. Set dry_run=true to preview without applying."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "namespace": {"type": "string", "description": "Kubernetes namespace"},
+                "deployment_name": {"type": "string"},
+                "patch": {
+                    "type": "object",
+                    "description": (
+                        "Kubernetes strategic merge patch body. Examples:\n"
+                        "Remove impossible nodeSelector: "
+                        "{\"spec\":{\"template\":{\"spec\":{\"nodeSelector\":null}}}}\n"
+                        "Remove failing readiness probe (container name 'sick-api'): "
+                        "{\"spec\":{\"template\":{\"spec\":{\"containers\":"
+                        "[{\"name\":\"sick-api\",\"readinessProbe\":null}]}}}}\n"
+                        "Fix container command (container name 'crash-worker'): "
+                        "{\"spec\":{\"template\":{\"spec\":{\"containers\":"
+                        "[{\"name\":\"crash-worker\",\"command\":"
+                        "[\"sh\",\"-c\",\"echo ok; sleep 3600\"]}]}}}}\n"
+                        "Fix env var: "
+                        "{\"spec\":{\"template\":{\"spec\":{\"containers\":"
+                        "[{\"name\":\"app\",\"env\":"
+                        "[{\"name\":\"SHOULD_CRASH\",\"value\":\"false\"}]}]}}}}"
+                    ),
+                },
+                "dry_run": {"type": "boolean", "description": "Preview only (default: false)"},
+            },
+            "required": ["namespace", "deployment_name", "patch"],
+        },
+    },
+    {
         "name": "rollback_deployment",
         "description": (
             "Roll back a deployment to its previous revision. "
-            "Use ONLY after confirming the current revision introduced the regression. "
-            "This is the most invasive healing action — prefer restart or scale first."
+            "Use when a recent code or image change introduced the regression and the previous "
+            "revision was known to be healthy. "
+            "Call get_deployment_status first to confirm a prior revision exists."
         ),
         "input_schema": {
             "type": "object",
@@ -682,6 +759,19 @@ async def execute_tool(
                     "deployment_name": tool_input["deployment_name"],
                     "replicas": tool_input["replicas"],
                     "dry_run": str(tool_input.get("dry_run", False)).lower(),
+                },
+            )
+
+        case "patch_deployment":
+            result = await _call_api(
+                http,
+                "post",
+                "/healing/patch-deployment",
+                json={
+                    "namespace": tool_input["namespace"],
+                    "deployment_name": tool_input["deployment_name"],
+                    "patch": tool_input["patch"],
+                    "dry_run": tool_input.get("dry_run", False),
                 },
             )
 

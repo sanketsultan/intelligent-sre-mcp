@@ -766,6 +766,109 @@ class HealingActions:
                 "dry_run": dry_run,
             }
 
+    def patch_deployment(
+        self,
+        namespace: str,
+        deployment_name: str,
+        patch: Dict[str, Any],
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Apply a strategic merge patch to fix a deployment's configuration.
+
+        Use this to address the root cause of failures rather than emergency-stopping
+        the deployment.  Common repairs:
+          - Remove an impossible nodeSelector that keeps pods Pending
+          - Fix or remove a readiness probe pointing at the wrong port
+          - Update a container command or environment variable that causes crashes
+          - Fix resource requests that exceed LimitRange constraints
+
+        Args:
+            namespace:        Kubernetes namespace.
+            deployment_name:  Deployment to patch.
+            patch:            Kubernetes strategic merge patch dict.
+            dry_run:          If True, describe the change without applying it.
+
+        Returns:
+            Dict with success flag, action details, and the patch that was applied.
+        """
+        action_type = "patch_deployment"
+
+        try:
+            allowed, reason = self.limiter.can_perform_action(action_type, affected_resources=1)
+            if not allowed:
+                return {
+                    "success": False,
+                    "action": action_type,
+                    "namespace": namespace,
+                    "resource": deployment_name,
+                    "error": reason,
+                    "dry_run": dry_run,
+                }
+
+            if dry_run:
+                logger.info(
+                    "[DRY RUN] Would patch deployment %s/%s with: %s",
+                    namespace,
+                    deployment_name,
+                    patch,
+                )
+                return {
+                    "success": True,
+                    "action": action_type,
+                    "namespace": namespace,
+                    "resource": deployment_name,
+                    "message": "Dry run: would apply the following patch",
+                    "patch": patch,
+                    "dry_run": True,
+                }
+
+            # Apply strategic merge patch — the K8s API merges arrays by key field
+            # (e.g. containers by name), so partial container specs work correctly.
+            self.apps_api.patch_namespaced_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                body=patch,
+            )
+
+            action_id = self.limiter.record_action(
+                action_type,
+                namespace,
+                deployment_name,
+                True,
+                f"Applied patch: {patch}",
+            )
+
+            logger.info("Patched deployment %s/%s", namespace, deployment_name)
+            return {
+                "success": True,
+                "action": action_type,
+                "namespace": namespace,
+                "resource": deployment_name,
+                "message": (
+                    "Deployment patched successfully. "
+                    "Pods will be recreated with the updated spec."
+                ),
+                "patch_applied": patch,
+                "action_id": action_id,
+                "dry_run": False,
+            }
+
+        except ApiException as e:
+            error_msg = f"Failed to patch deployment: {e.reason}"
+            logger.error(error_msg)
+            action_id = self.limiter.record_action(
+                action_type, namespace, deployment_name, False, error_msg
+            )
+            return {
+                "success": False,
+                "action": action_type,
+                "namespace": namespace,
+                "resource": deployment_name,
+                "error": error_msg,
+                "action_id": action_id,
+                "dry_run": dry_run,
+            }
+
     def cordon_node(self, node_name: str, dry_run: bool = False) -> Dict[str, Any]:
         """
         Cordon a node (mark as unschedulable)

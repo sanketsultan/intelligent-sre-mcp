@@ -91,16 +91,18 @@ kubectl apply  -k k8s/chaos/
 kubectl delete -k k8s/chaos/
 ```
 
-Failure modes simulated (`k8s/chaos/`):
+Failure modes simulated (`k8s/chaos/`) — all fixable via `patch_deployment`:
 
-| Pod | Failure | Root cause |
-|---|---|---|
-| `crash-worker` | CrashLoopBackOff | container exits with code 1 |
-| `dependent-worker` | Init:Error | init container blocked by crash-worker being down (cascade) |
-| `pending-worker` | Pending | requests 100 CPU cores — impossible to schedule |
-| `sick-api` | Running/NotReady | readiness probe always fails (port not open) |
+| Pod | Failure | Root cause | Agent fix |
+|---|---|---|---|
+| `crash-worker` | CrashLoopBackOff | `SIMULATE_CRASH=true` env var causes exit 1 | patch env var to `false` |
+| `dependent-worker` | Init:Error | init blocked by crash-worker being down (cascade) | auto-recovers once crash-worker is healthy |
+| `pending-worker` | Pending | impossible `nodeSelector: hardware-accelerator: a100-gpu` | patch `nodeSelector` to `null` |
+| `sick-api` | Running/NotReady | readiness probe targets port 9999 (not listening) | patch `readinessProbe` to `null` |
 
-Agent healing actions used: `delete_failed_pods`, `scale_deployment` (to 0).
+Healing tool priority: `patch_deployment` (fix config) > `rollback_deployment` (revert bad deploy) > `restart_pod` (transient) > `scale_deployment` to 0 (emergency stop only).
+
+New endpoint: `POST /healing/patch-deployment` — applies a K8s strategic merge patch to fix a deployment in place without stopping it.
 
 ## Slash commands
 - `/lint` — ruff check + format, auto-fix all issues
