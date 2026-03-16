@@ -118,6 +118,9 @@ spec:
             # Use sonnet for webhook-triggered remediation; haiku for read-only investigation.
             - name: SRE_REMEDIATION_MODEL
               value: "claude-sonnet-4-5"
+            # Model used when sonnet leaves deployments STILL BROKEN — escalate before paging human.
+            - name: SRE_ESCALATION_MODEL
+              value: "claude-opus-4-6"
             # Output token ceiling for the Phase 2 remediation pass.  max_tokens is a
             # ceiling not a floor — you only pay for tokens actually generated.  4096 is
             # sufficient for all normal remediation responses; raise if the agent response
@@ -128,6 +131,13 @@ spec:
             # Root-cause detail appears in the first ~3000 chars; the rest is raw log noise.
             - name: SRE_INVESTIGATION_CTX_CHARS
               value: "3000"
+            # Minimum alert severity that triggers auto-remediation (Phase 2).
+            # "critical" = only critical alerts (default). "warning" = warning + critical.
+            - name: SRE_AUTO_REMEDIATE_SEVERITY
+              value: "critical"
+            # Health score (0-100) below which the proactive CronJob triggers remediation.
+            - name: SRE_PROACTIVE_HEALTH_THRESHOLD
+              value: "50"
 
           # Container-level security: drop all capabilities, read-only FS
           securityContext:

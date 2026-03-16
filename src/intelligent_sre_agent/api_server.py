@@ -95,11 +95,31 @@ API_URL = os.getenv("API_URL", "http://localhost:8080")
 SRE_REMEDIATION_MODEL = os.getenv("SRE_REMEDIATION_MODEL", "claude-sonnet-4-5")
 # Model used for the investigation-only pass (cheap, fast).
 SRE_INVESTIGATION_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
+# Model used when sonnet remediation produces "STILL BROKEN" — escalate to a
+# more capable model before paging a human.
+SRE_ESCALATION_MODEL = os.getenv("SRE_ESCALATION_MODEL", "claude-opus-4-6")
 # max_tokens ceiling for the Phase 2 remediation call.  This is an OUTPUT cap —
 # you only pay for tokens actually generated, not the limit.  4096 is sufficient
 # for all normal remediation responses.  Raise via env var if the agent is being
 # truncated mid-response (check remediation_summary ends with "...").
 SRE_MAX_TOKENS = int(os.getenv("SRE_MAX_TOKENS", "4096"))
+# Minimum alert severity that triggers auto-remediation (Phase 2).
+# "critical" = only critical alerts (default, conservative)
+# "warning"  = warning + critical alerts
+# "info"     = all alerts (use with caution)
+SRE_AUTO_REMEDIATE_SEVERITY = os.getenv("SRE_AUTO_REMEDIATE_SEVERITY", "critical").lower()
+# Health score (0-100) below which the proactive CronJob triggers auto-remediation.
+SRE_PROACTIVE_HEALTH_THRESHOLD = int(os.getenv("SRE_PROACTIVE_HEALTH_THRESHOLD", "50"))
+
+# Severity ordering: alerts at or above the configured threshold trigger Phase 2.
+_SEVERITY_ORDER: dict[str, int] = {"info": 0, "warning": 1, "critical": 2}
+
+
+def _should_remediate(severity: str) -> bool:
+    """Return True if alert severity meets the configured remediation threshold."""
+    alert_level = _SEVERITY_ORDER.get(severity.lower(), 0)
+    threshold_level = _SEVERITY_ORDER.get(SRE_AUTO_REMEDIATE_SEVERITY, 2)
+    return alert_level >= threshold_level
 # Max characters of Phase 1 investigation to embed in the Phase 2 sonnet prompt.
 # Sonnet charges per INPUT token too; a 10 000-char investigation summary adds
 # ~2 500 input tokens (~$0.008) on every remediation call.  Truncating to 3 000
@@ -747,11 +767,14 @@ async def _post_slack_notification(text: str) -> None:
         logger.warning("Slack notification failed", extra={"error": str(exc)})
 
 
-async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> None:
+async def _investigate_alert(
+    alert_id: int, prompt: str, alert_name: str, severity: str
+) -> None:
     """Background task: run the SRE agent for a firing alert and persist results.
 
     Phase 1 (always) — investigation + root-cause analysis + pod-log review.
-    Phase 2 (critical only) — automated remediation using a more capable model.
+    Phase 2 (if severity >= SRE_AUTO_REMEDIATE_SEVERITY) — automated remediation.
+    Phase 3 (if Phase 2 leaves anything STILL BROKEN) — escalate to opus + Slack page.
 
     Phase 2 receives the Phase 1 investigation results as context so it can skip
     re-investigation and proceed directly to healing actions.
@@ -772,7 +795,7 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
         )
         logger.info(
             "Alert investigation complete",
-            extra={"alert_id": alert_id, "is_critical": is_critical},
+            extra={"alert_id": alert_id, "severity": severity},
         )
     except Exception as exc:  # noqa: BLE001
         logger.error(
@@ -786,17 +809,17 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
         # Do not attempt remediation if investigation itself failed
         return
 
-    if not is_critical:
+    if not _should_remediate(severity):
+        logger.info(
+            "Skipping remediation — severity below threshold",
+            extra={"severity": severity, "threshold": SRE_AUTO_REMEDIATE_SEVERITY},
+        )
         return
 
     # Phase 2: remediation — pass Phase 1 findings as context so the agent
     # skips redundant re-investigation and goes straight to healing actions.
-    # Each deployment has its own independent rate-limit cooldown, so all broken
-    # deployments can be patched sequentially in a single agent pass.
-    #
-    # Truncate the investigation to _INVESTIGATION_CTX_LIMIT chars to keep
-    # sonnet input tokens (and cost) low.  The key root-cause details always
-    # appear in the first few hundred lines; the tail is mostly raw log noise.
+    # Truncate investigation to _INVESTIGATION_CTX_LIMIT chars to keep
+    # sonnet input tokens (and cost) low.
     investigation_ctx = investigation[:_INVESTIGATION_CTX_LIMIT]
     if len(investigation) > _INVESTIGATION_CTX_LIMIT:
         investigation_ctx += "\n[... truncated for cost efficiency ...]"
@@ -810,6 +833,7 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
         f"Output: one line per deployment: '<name>: FIXED' or '<name>: FAILED — <reason>'. "
         f"No other text."
     )
+    remediation: str = ""
     try:
         remediation = await run_sre_agent(
             remediation_prompt,
@@ -825,10 +849,112 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
             "Alert remediation failed",
             extra={"alert_id": alert_id, "error": str(exc)},
         )
-        alert_store.update_remediation(
-            alert_id,
-            f"Remediation failed: {exc}",
+        alert_store.update_remediation(alert_id, f"Remediation failed: {exc}")
+        await _post_slack_notification(
+            f"[URGENT] Remediation failed for `{alert_name}`. Error: {exc}\nManual intervention required."
         )
+        return
+
+    # Phase 3: if sonnet left anything broken, escalate to opus then page human.
+    if "STILL BROKEN" not in remediation:
+        return
+
+    logger.warning(
+        "Remediation incomplete — escalating to %s", SRE_ESCALATION_MODEL,
+        extra={"alert_id": alert_id},
+    )
+    escalation_prompt = (
+        f"{remediation_prompt}\n\n"
+        f"PREVIOUS ATTEMPT ({SRE_REMEDIATION_MODEL}) result:\n{remediation[:800]}\n\n"
+        f"Some deployments are still broken. Try alternative approaches: "
+        f"if patch_deployment failed use rollback_deployment; "
+        f"if rollback unavailable use restart_pod. "
+        f"Fix every remaining broken deployment."
+    )
+    try:
+        escalation = await run_sre_agent(
+            escalation_prompt,
+            remediate=True,
+            api_base=API_URL,
+            model=SRE_ESCALATION_MODEL,
+            max_tokens=SRE_MAX_TOKENS,
+        )
+        combined = f"{remediation}\n\n[ESCALATION — {SRE_ESCALATION_MODEL}]\n{escalation}"
+        alert_store.update_remediation(alert_id, combined)
+        logger.info("Escalation remediation complete", extra={"alert_id": alert_id})
+
+        if "STILL BROKEN" in (escalation or ""):
+            await _post_slack_notification(
+                f"[URGENT] `{alert_name}` could not be auto-remediated after escalation to "
+                f"{SRE_ESCALATION_MODEL}. Manual intervention required.\n"
+                f"Latest attempt:\n{escalation[:400]}"
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Escalation failed", extra={"alert_id": alert_id, "error": str(exc)})
+        await _post_slack_notification(
+            f"[URGENT] Escalation to {SRE_ESCALATION_MODEL} failed for `{alert_name}`. "
+            f"Error: {exc}\nManual intervention required."
+        )
+
+
+async def _run_proactive_remediation(prompt: str, health_score: int) -> None:
+    """Background task triggered by the proactive health check."""
+    from intelligent_sre_agent.sre_agent import run_sre_agent  # noqa: PLC0415
+
+    try:
+        result = await run_sre_agent(
+            prompt,
+            remediate=True,
+            api_base=API_URL,
+            model=SRE_REMEDIATION_MODEL,
+            max_tokens=SRE_MAX_TOKENS,
+        )
+        logger.info(
+            "Proactive remediation complete",
+            extra={"health_score": health_score, "result_preview": result[:200]},
+        )
+        await _post_slack_notification(
+            f"[PROACTIVE] Health score was {health_score}/100 — auto-remediation ran.\n{result[:500]}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Proactive remediation failed", extra={"error": str(exc)})
+
+
+@app.post("/health/proactive-check")
+async def proactive_health_check(background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    """Proactive health check endpoint — called by the K8s CronJob every 5 minutes.
+
+    Fetches the current system health score and triggers investigation + remediation
+    if the score drops below SRE_PROACTIVE_HEALTH_THRESHOLD (default: 50).
+    Returns immediately; the agent run happens in the background.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{API_URL}/detection/health-score")
+            data = resp.json()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Proactive check: health-score fetch failed", extra={"error": str(exc)})
+        return {"status": "error", "error": str(exc), "action": "none"}
+
+    health_score = data.get("score", 100)
+
+    if health_score >= SRE_PROACTIVE_HEALTH_THRESHOLD:
+        logger.debug("Proactive check: system healthy", extra={"health_score": health_score})
+        return {"status": "healthy", "health_score": health_score, "action": "none"}
+
+    prompt = (
+        f"Proactive health check triggered: system health score is {health_score}/100 "
+        f"(threshold: {SRE_PROACTIVE_HEALTH_THRESHOLD}). "
+        f"Investigate all anomalies and remediate any broken workloads."
+    )
+    background_tasks.add_task(_run_proactive_remediation, prompt, health_score)
+    logger.info("Proactive check triggered remediation", extra={"health_score": health_score})
+    return {
+        "status": "degraded",
+        "health_score": health_score,
+        "threshold": SRE_PROACTIVE_HEALTH_THRESHOLD,
+        "action": "remediation_scheduled",
+    }
 
 
 @app.post("/alertmanager/webhook", status_code=202)
@@ -889,8 +1015,6 @@ async def alertmanager_webhook(
         if description:
             agent_prompt += f"Description: {description}\n"
 
-        is_critical = severity.lower() == "critical"
-
         # Notify Slack (best-effort, does not block the response)
         slack_text = (
             f"[ALERT] *{alert_name}* | severity: {severity or 'unknown'} | "
@@ -898,8 +1022,10 @@ async def alertmanager_webhook(
         )
         background_tasks.add_task(_post_slack_notification, slack_text)
 
-        # Schedule the SRE agent investigation
-        background_tasks.add_task(_investigate_alert, alert_id, agent_prompt, is_critical)
+        # Schedule the SRE agent investigation (+ conditional remediation + escalation)
+        background_tasks.add_task(
+            _investigate_alert, alert_id, agent_prompt, alert_name, severity
+        )
 
         logger.info(
             "Alert received and queued for investigation",

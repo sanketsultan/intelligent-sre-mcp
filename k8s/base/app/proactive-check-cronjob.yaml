@@ -1,0 +1,60 @@
+# Proactive health check CronJob — runs every 5 minutes and POSTs to
+# /health/proactive-check on the API server.  If the system health score
+# drops below SRE_PROACTIVE_HEALTH_THRESHOLD (default: 50), the API server
+# triggers an autonomous investigation + remediation pass in the background.
+#
+# This makes the SRE agent proactive rather than purely reactive to alerts:
+# it can detect and fix degraded states before Alertmanager fires.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sre-proactive-check
+  namespace: intelligent-sre
+  labels:
+    app: sre-proactive-check
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid        # skip if previous run is still running
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0              # no retries — next run is in 5 minutes anyway
+      template:
+        metadata:
+          labels:
+            app: sre-proactive-check
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534       # nobody
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: health-check
+              image: curlimages/curl:8.10.1
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              command:
+                - curl
+                - --silent
+                - --fail
+                - --max-time
+                - "30"
+                - -X
+                - POST
+                - http://intelligent-sre-agent.intelligent-sre.svc.cluster.local:8080/health/proactive-check
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 50m
+                  memory: 32Mi

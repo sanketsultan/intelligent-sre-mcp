@@ -7,3 +7,4 @@ resources:
   - hpa.yaml
   - network-policy.yaml
   - resource-limits.yaml
+  - proactive-check-cronjob.yaml
