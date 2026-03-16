@@ -42,9 +42,16 @@ spec:
       labels:
         app: otel-collector
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:latest
+          image: otel/opentelemetry-collector-contrib:0.115.1
           args:
             - "--config=/etc/otelcol-contrib/config.yml"
           ports:
@@ -54,10 +61,20 @@ spec:
               name: http
             - containerPort: 9464
               name: prometheus
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - name: otel-collector-config
               mountPath: /etc/otelcol-contrib/config.yml
               subPath: otel-collector.yml
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 100m
@@ -69,3 +86,5 @@ spec:
         - name: otel-collector-config
           configMap:
             name: otel-collector-config
+        - name: tmp
+          emptyDir: {}

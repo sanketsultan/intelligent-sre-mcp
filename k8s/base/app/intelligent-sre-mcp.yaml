@@ -46,6 +46,34 @@ spec:
         seccompProfile:
           type: RuntimeDefault
 
+      # Block the main container until Postgres is accepting connections.
+      # Uses pg_isready from the same postgres image to avoid adding new deps.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16.4-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -p 5432 -U "$POSTGRES_USER"; do
+                echo "waiting for postgres..."; sleep 2;
+              done
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-auth
+                  key: POSTGRES_USER
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+
       containers:
         - name: intelligent-sre-mcp
           image: intelligent-sre-mcp:latest
@@ -78,6 +106,28 @@ spec:
                   key: POSTGRES_DB
             - name: ACTION_HISTORY_DB
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-credentials
+                  key: ANTHROPIC_API_KEY
+            # In-pod agent calls back to the API server on its internal port (8080),
+            # not the external NodePort (30080) which is unreachable inside the pod.
+            - name: API_URL
+              value: "http://localhost:8080"
+            # Use sonnet for webhook-triggered remediation; haiku for read-only investigation.
+            - name: SRE_REMEDIATION_MODEL
+              value: "claude-sonnet-4-5"
+            # Output token ceiling for the Phase 2 remediation pass.  max_tokens is a
+            # ceiling not a floor — you only pay for tokens actually generated.  4096 is
+            # sufficient for all normal remediation responses; raise if the agent response
+            # appears truncated (remediation_summary ends with "...").
+            - name: SRE_MAX_TOKENS
+              value: "4096"
+            # Max chars of Phase 1 investigation embedded in the Phase 2 sonnet prompt.
+            # Root-cause detail appears in the first ~3000 chars; the rest is raw log noise.
+            - name: SRE_INVESTIGATION_CTX_CHARS
+              value: "3000"
 
           # Container-level security: drop all capabilities, read-only FS
           securityContext:

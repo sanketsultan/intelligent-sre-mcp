@@ -25,6 +25,8 @@ from opentelemetry.semconv.resource import ResourceAttributes
 from pydantic import BaseModel
 
 from intelligent_sre_mcp.alert_store import AlertStore
+from intelligent_sre_mcp.remediation_engine import RemediationEngine, list_playbooks
+from intelligent_sre_mcp.remediation_store import RemediationStore
 from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, set_current_problem_id
 from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
 from intelligent_sre_mcp.tools.correlation import CorrelationEngine
@@ -77,7 +79,26 @@ TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://otel-collector:4317")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "intelligent-sre-mcp")
 ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
-API_URL = os.getenv("API_URL", "http://localhost:30080")
+# When the agent runs inside the K8s pod it must reach the API server on its
+# internal port (8080), not the external NodePort (30080) which is not bound to
+# localhost inside the container.  Override via env var in the deployment manifest.
+API_URL = os.getenv("API_URL", "http://localhost:8080")
+# Model used by the webhook-triggered remediation pass.  Sonnet is the minimum
+# recommended capability level for multi-step tool-based remediation.  Haiku is
+# too weak to reliably chain detect -> scale_deployment calls.
+SRE_REMEDIATION_MODEL = os.getenv("SRE_REMEDIATION_MODEL", "claude-sonnet-4-5")
+# Model used for the investigation-only pass (cheap, fast).
+SRE_INVESTIGATION_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
+# max_tokens ceiling for the Phase 2 remediation call.  This is an OUTPUT cap —
+# you only pay for tokens actually generated, not the limit.  4096 is sufficient
+# for all normal remediation responses.  Raise via env var if the agent is being
+# truncated mid-response (check remediation_summary ends with "...").
+SRE_MAX_TOKENS = int(os.getenv("SRE_MAX_TOKENS", "4096"))
+# Max characters of Phase 1 investigation to embed in the Phase 2 sonnet prompt.
+# Sonnet charges per INPUT token too; a 10 000-char investigation summary adds
+# ~2 500 input tokens (~$0.008) on every remediation call.  Truncating to 3 000
+# chars captures all root-cause detail the agent needs without the noise.
+_INVESTIGATION_CTX_LIMIT = int(os.getenv("SRE_INVESTIGATION_CTX_CHARS", "3000"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "")
 
@@ -94,12 +115,20 @@ correlation_engine = CorrelationEngine(PROM_URL)
 # Initialize Phase 3: Self-Healing Actions
 action_store = ActionHistoryStore()
 alert_store = AlertStore()
+remediation_store = RemediationStore()
 
 healing_actions = HealingActions(
     core_api=client.CoreV1Api(),
     apps_api=client.AppsV1Api(),
     policy_api=client.PolicyV1Api(),
     action_store=action_store,
+)
+
+# Initialize the auto-remediation engine (notify_callback wired in at module level)
+remediation_engine = RemediationEngine(
+    k8s_tools=k8s_tools,
+    healing_actions=healing_actions,
+    store=remediation_store,
 )
 
 
@@ -523,6 +552,31 @@ def rollback_deployment(
     return result
 
 
+class PatchDeploymentRequest(BaseModel):
+    namespace: str
+    deployment_name: str
+    patch: Dict[str, Any]
+    dry_run: bool = False
+
+
+@app.post("/healing/patch-deployment")
+def patch_deployment_endpoint(req: PatchDeploymentRequest):
+    """Apply a strategic merge patch to fix a deployment's configuration.
+
+    Use to repair the root cause instead of emergency-stopping the pod:
+      - Remove an impossible nodeSelector keeping pods Pending
+      - Fix/remove a readiness probe pointing at the wrong port
+      - Update a container command or env var that causes CrashLoopBackOff
+      - Fix resource requests that violate a LimitRange
+
+    Body JSON: {"namespace": "...", "deployment_name": "...", "patch": {...}, "dry_run": false}
+    """
+    result = healing_actions.patch_deployment(
+        req.namespace, req.deployment_name, req.patch, req.dry_run
+    )
+    return result
+
+
 @app.post("/healing/cordon-node")
 def cordon_node(node_name: str, dry_run: bool = False):
     """
@@ -691,13 +745,22 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
     """Background task: run the SRE agent for a firing alert and persist results.
 
     Phase 1 (always) — investigation + root-cause analysis + pod-log review.
-    Phase 2 (critical only) — attempt automated remediation.
+    Phase 2 (critical only) — automated remediation using a more capable model.
+
+    Phase 2 receives the Phase 1 investigation results as context so it can skip
+    re-investigation and proceed directly to healing actions.
     """
     # Lazy import avoids circular dependency at module load time
     from intelligent_sre_mcp.sre_agent import run_sre_agent  # noqa: PLC0415
 
+    investigation: str = ""
     try:
-        investigation = await run_sre_agent(prompt, remediate=False, api_base=API_URL)
+        investigation = await run_sre_agent(
+            prompt,
+            remediate=False,
+            api_base=API_URL,
+            model=SRE_INVESTIGATION_MODEL,
+        )
         alert_store.update_investigation(
             alert_id, investigation or "No investigation output returned."
         )
@@ -705,14 +768,6 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
             "Alert investigation complete",
             extra={"alert_id": alert_id, "is_critical": is_critical},
         )
-
-        if is_critical:
-            remediation = await run_sre_agent(prompt, remediate=True, api_base=API_URL)
-            alert_store.update_remediation(
-                alert_id, remediation or "No remediation output returned."
-            )
-            logger.info("Alert remediation complete", extra={"alert_id": alert_id})
-
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "Alert investigation failed",
@@ -721,6 +776,52 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
         alert_store.update_investigation(
             alert_id,
             f"Investigation failed: {exc}",
+        )
+        # Do not attempt remediation if investigation itself failed
+        return
+
+    if not is_critical:
+        return
+
+    # Phase 2: remediation — pass Phase 1 findings as context so the agent
+    # skips redundant re-investigation and goes straight to healing actions.
+    # Each deployment has its own independent rate-limit cooldown, so all broken
+    # deployments can be patched sequentially in a single agent pass.
+    #
+    # Truncate the investigation to _INVESTIGATION_CTX_LIMIT chars to keep
+    # sonnet input tokens (and cost) low.  The key root-cause details always
+    # appear in the first few hundred lines; the tail is mostly raw log noise.
+    investigation_ctx = investigation[:_INVESTIGATION_CTX_LIMIT]
+    if len(investigation) > _INVESTIGATION_CTX_LIMIT:
+        investigation_ctx += "\n[... truncated for cost efficiency ...]"
+    remediation_prompt = (
+        f"{prompt}\n\n"
+        f"PHASE 1 FINDINGS (do not re-investigate):\n{investigation_ctx}\n\n"
+        f"Phase 2: patch every broken deployment now. "
+        f"Call patch_deployment for each one in sequence — each has its own cooldown. "
+        f"Do NOT scale to zero. Do NOT ask for confirmation. "
+        f"After patching call get_deployment_status to confirm. "
+        f"Output: one line per deployment: '<name>: FIXED' or '<name>: FAILED — <reason>'. "
+        f"No other text."
+    )
+    try:
+        remediation = await run_sre_agent(
+            remediation_prompt,
+            remediate=True,
+            api_base=API_URL,
+            model=SRE_REMEDIATION_MODEL,
+            max_tokens=SRE_MAX_TOKENS,
+        )
+        alert_store.update_remediation(alert_id, remediation or "No remediation output returned.")
+        logger.info("Alert remediation complete", extra={"alert_id": alert_id})
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Alert remediation failed",
+            extra={"alert_id": alert_id, "error": str(exc)},
+        )
+        alert_store.update_remediation(
+            alert_id,
+            f"Remediation failed: {exc}",
         )
 
 
@@ -829,6 +930,75 @@ def get_alert(alert_id: int) -> Dict[str, Any]:
     if alert is None:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     return alert
+
+
+# ============================================================
+# Auto-Remediation Playbook Endpoints
+# ============================================================
+
+
+class RemediationRunRequest(BaseModel):
+    """Request body for POST /remediation/run."""
+
+    namespace: Optional[str] = None
+    dry_run: bool = False
+
+
+@app.post("/remediation/run")
+def run_remediation(request: RemediationRunRequest) -> Dict[str, Any]:
+    """Trigger an auto-remediation cycle.
+
+    Scans the cluster (or a single namespace) for failing pods and unhealthy
+    nodes, matches each issue to a pre-approved playbook, scores confidence,
+    and executes fixes when confidence >= 80%.  Issues below the threshold are
+    flagged for human review.
+
+    Body (optional JSON):
+      namespace — limit scan to one namespace (default: all namespaces)
+      dry_run   — report what *would* happen without changing anything
+    """
+    # Wire the Slack notify callback so deferred issues post to #sre-alerts
+    import asyncio  # noqa: PLC0415
+
+    def _notify_sync(text: str) -> None:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(_post_slack_notification(text))
+            else:
+                loop.run_until_complete(_post_slack_notification(text))
+        except Exception:  # noqa: BLE001
+            pass
+
+    remediation_engine._notify = _notify_sync  # type: ignore[assignment]
+
+    report = remediation_engine.run(
+        namespace=request.namespace,
+        dry_run=request.dry_run,
+    )
+    return report.to_dict()
+
+
+@app.get("/remediation/history")
+def get_remediation_history(
+    limit: int = 50,
+    outcome: Optional[str] = None,
+    issue_type: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """List past auto-remediation runs, most recent first.
+
+    Query params:
+      limit       — max rows (default 50)
+      outcome     — filter by outcome: executed | deferred_to_human | dry_run | failed
+      issue_type  — filter by issue type: CrashLoopBackOff | OOMKilled | ...
+    """
+    return remediation_store.list_runs(limit=limit, outcome=outcome, issue_type=issue_type)
+
+
+@app.get("/remediation/playbooks")
+def get_remediation_playbooks() -> List[Dict[str, Any]]:
+    """List all pre-approved remediation playbooks with their confidence thresholds."""
+    return list_playbooks()
 
 
 if __name__ == "__main__":

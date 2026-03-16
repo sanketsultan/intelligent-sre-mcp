@@ -13,19 +13,43 @@ class KubernetesTools:
     """Tools for Kubernetes cluster diagnostics and management."""
 
     def __init__(self):
-        """Initialize Kubernetes client."""
+        """Initialize Kubernetes client.
+
+        When no kubeconfig or in-cluster config is available (e.g. running via
+        Docker Compose without a cluster), self.available is set to False and all
+        public methods return a descriptive error dict instead of raising.
+        """
         try:
-            # Try to load in-cluster config first (when running in K8s)
             config.load_incluster_config()
             self.in_cluster = True
+            self.available = True
         except config.ConfigException:
-            # Fall back to kubeconfig (for local development)
-            config.load_kube_config()
-            self.in_cluster = False
+            try:
+                config.load_kube_config()
+                self.in_cluster = False
+                self.available = True
+            except config.ConfigException:
+                # No K8s config found — running without a cluster (e.g. Docker Compose).
+                # Mark unavailable; all methods return a graceful error.
+                self.in_cluster = False
+                self.available = False
+                self.v1 = None
+                self.apps_v1 = None
+                self.batch_v1 = None
+                return
 
         self.v1 = client.CoreV1Api()
         self.apps_v1 = client.AppsV1Api()
         self.batch_v1 = client.BatchV1Api()
+
+    def _no_k8s_error(self) -> Dict[str, str]:
+        """Return a standard error dict when no K8s cluster is configured."""
+        return {
+            "error": (
+                "Kubernetes is not available: no in-cluster config or kubeconfig found. "
+                "Connect to a cluster (Docker Desktop, kind, minikube, or EKS) and restart."
+            )
+        }
 
     def get_all_pods(self, namespace: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -37,6 +61,8 @@ class KubernetesTools:
         Returns:
             List of pod information dictionaries
         """
+        if not self.available:
+            return [self._no_k8s_error()]
         try:
             if namespace:
                 pods = self.v1.list_namespaced_pod(namespace)
@@ -124,6 +150,8 @@ class KubernetesTools:
         Returns:
             Dictionary with logs or error message
         """
+        if not self.available:
+            return self._no_k8s_error()
         try:
             # Get pod info to find container name if not specified
             if not container:
@@ -164,6 +192,8 @@ class KubernetesTools:
         Returns:
             Detailed pod information
         """
+        if not self.available:
+            return self._no_k8s_error()
         try:
             pod = self.v1.read_namespaced_pod(pod_name, namespace)
             events = self.v1.list_namespaced_event(
@@ -242,6 +272,8 @@ class KubernetesTools:
         Returns:
             List of node information
         """
+        if not self.available:
+            return [self._no_k8s_error()]
         try:
             nodes = self.v1.list_node()
 
@@ -285,6 +317,8 @@ class KubernetesTools:
         Returns:
             Deployment status information
         """
+        if not self.available:
+            return self._no_k8s_error()
         try:
             deployment = self.apps_v1.read_namespaced_deployment(deployment_name, namespace)
 
@@ -332,6 +366,8 @@ class KubernetesTools:
         Returns:
             List of events
         """
+        if not self.available:
+            return [self._no_k8s_error()]
         try:
             if namespace:
                 events = self.v1.list_namespaced_event(namespace)

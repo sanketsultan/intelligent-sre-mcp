@@ -25,8 +25,21 @@ class HealingActionLimiter:
         self.cooldown_minutes = 5
         self.action_store = action_store
 
-    def can_perform_action(self, action_type: str, affected_resources: int = 1) -> tuple[bool, str]:
-        """Check if action is allowed based on safety limits"""
+    def can_perform_action(
+        self,
+        action_type: str,
+        affected_resources: int = 1,
+        resource_name: str = "",
+    ) -> tuple[bool, str]:
+        """Check if action is allowed based on safety limits.
+
+        Cooldown granularity:
+          - Destructive operations (scale, rollback, restart, drain): per action_type
+            (global cooldown — one of these per 5 min regardless of target)
+          - Config-fix operations (patch_deployment): per (action_type, resource_name)
+            (each deployment gets its own independent cooldown, so a multi-deployment
+            incident can be fixed in a single agent pass without artificial delays)
+        """
         now = datetime.utcnow()
         one_hour_ago = now - timedelta(hours=1)
 
@@ -36,32 +49,49 @@ class HealingActionLimiter:
         if len(recent_actions) >= self.max_actions_per_hour:
             return (
                 False,
-                f"Rate limit exceeded: {len(recent_actions)} actions in last hour (max: {self.max_actions_per_hour})",
+                f"Rate limit exceeded: {len(recent_actions)} actions in last hour "
+                f"(max: {self.max_actions_per_hour})",
             )
 
         # Check blast radius
         if affected_resources > self.max_pods_per_action:
             return (
                 False,
-                f"Blast radius too large: {affected_resources} resources (max: {self.max_pods_per_action})",
+                f"Blast radius too large: {affected_resources} resources "
+                f"(max: {self.max_pods_per_action})",
             )
 
-        # Check cooldown for same action type
-        same_type_actions = [
-            a
-            for a in self.action_history
-            if a["action_type"] == action_type
-            and a["timestamp"] > now - timedelta(minutes=self.cooldown_minutes)
-        ]
+        # Cooldown check — scope depends on action safety level:
+        # patch_deployment is a targeted, reversible config fix; track per resource
+        # so multiple deployments in the same incident can all be patched immediately.
+        # All other actions use a global per-type cooldown for safety.
+        cooldown_window = now - timedelta(minutes=self.cooldown_minutes)
+        if action_type == "patch_deployment" and resource_name:
+            # Per-resource cooldown: crash-worker and sick-api are independent
+            same_scope_actions = [
+                a
+                for a in self.action_history
+                if a["action_type"] == action_type
+                and a["resource"] == resource_name
+                and a["timestamp"] > cooldown_window
+            ]
+        else:
+            # Global per-type cooldown for destructive operations
+            same_scope_actions = [
+                a
+                for a in self.action_history
+                if a["action_type"] == action_type and a["timestamp"] > cooldown_window
+            ]
 
-        if same_type_actions:
-            last_action = same_type_actions[-1]
+        if same_scope_actions:
+            last_action = same_scope_actions[-1]
             cooldown_remaining = (
                 self.cooldown_minutes - (now - last_action["timestamp"]).total_seconds() / 60
             )
+            scope = f"{action_type}/{resource_name}" if resource_name else action_type
             return (
                 False,
-                f"Cooldown active: {cooldown_remaining:.1f} minutes remaining for {action_type}",
+                f"Cooldown active: {cooldown_remaining:.1f} minutes remaining for {scope}",
             )
 
         return True, "Action allowed"
@@ -756,6 +786,110 @@ class HealingActions:
                 action_type, namespace, deployment_name, False, error_msg
             )
 
+            return {
+                "success": False,
+                "action": action_type,
+                "namespace": namespace,
+                "resource": deployment_name,
+                "error": error_msg,
+                "action_id": action_id,
+                "dry_run": dry_run,
+            }
+
+    def patch_deployment(
+        self,
+        namespace: str,
+        deployment_name: str,
+        patch: Dict[str, Any],
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Apply a strategic merge patch to fix a deployment's configuration.
+
+        Use this to address the root cause of failures rather than emergency-stopping
+        the deployment.  Common repairs:
+          - Remove an impossible nodeSelector that keeps pods Pending
+          - Fix or remove a readiness probe pointing at the wrong port
+          - Update a container command or environment variable that causes crashes
+          - Fix resource requests that exceed LimitRange constraints
+
+        Args:
+            namespace:        Kubernetes namespace.
+            deployment_name:  Deployment to patch.
+            patch:            Kubernetes strategic merge patch dict.
+            dry_run:          If True, describe the change without applying it.
+
+        Returns:
+            Dict with success flag, action details, and the patch that was applied.
+        """
+        action_type = "patch_deployment"
+
+        try:
+            allowed, reason = self.limiter.can_perform_action(
+                action_type, affected_resources=1, resource_name=deployment_name
+            )
+            if not allowed:
+                return {
+                    "success": False,
+                    "action": action_type,
+                    "namespace": namespace,
+                    "resource": deployment_name,
+                    "error": reason,
+                    "dry_run": dry_run,
+                }
+
+            if dry_run:
+                logger.info(
+                    "[DRY RUN] Would patch deployment %s/%s with: %s",
+                    namespace,
+                    deployment_name,
+                    patch,
+                )
+                return {
+                    "success": True,
+                    "action": action_type,
+                    "namespace": namespace,
+                    "resource": deployment_name,
+                    "message": "Dry run: would apply the following patch",
+                    "patch": patch,
+                    "dry_run": True,
+                }
+
+            # Apply strategic merge patch — the K8s API merges arrays by key field
+            # (e.g. containers by name), so partial container specs work correctly.
+            self.apps_api.patch_namespaced_deployment(
+                name=deployment_name,
+                namespace=namespace,
+                body=patch,
+            )
+
+            action_id = self.limiter.record_action(
+                action_type,
+                namespace,
+                deployment_name,
+                True,
+                f"Applied patch: {patch}",
+            )
+
+            logger.info("Patched deployment %s/%s", namespace, deployment_name)
+            return {
+                "success": True,
+                "action": action_type,
+                "namespace": namespace,
+                "resource": deployment_name,
+                "message": (
+                    "Deployment patched successfully. Pods will be recreated with the updated spec."
+                ),
+                "patch_applied": patch,
+                "action_id": action_id,
+                "dry_run": False,
+            }
+
+        except ApiException as e:
+            error_msg = f"Failed to patch deployment: {e.reason}"
+            logger.error(error_msg)
+            action_id = self.limiter.record_action(
+                action_type, namespace, deployment_name, False, error_msg
+            )
             return {
                 "success": False,
                 "action": action_type,

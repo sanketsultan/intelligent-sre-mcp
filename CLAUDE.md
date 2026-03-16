@@ -29,8 +29,19 @@ tflint --chdir terraform/modules/eks
 checkov -d terraform/ --framework terraform --compact --quiet
 
 # Run the SRE agent (requires ANTHROPIC_API_KEY and API_URL pointing to a running stack)
+#
+# Model selection — controls cost vs capability (default: haiku):
+#   haiku   claude-haiku-4-5   ~$0.001/run   routine health checks        (default)
+#   sonnet  claude-sonnet-4-5  ~$0.05/run    complex incidents
+#   opus    claude-opus-4-6    ~$0.10/run    critical production incidents
+#
+# Set once via env var to avoid typing --model every time:
+#   export SRE_MODEL=sonnet
+#
 python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
-python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+python -m intelligent_sre_mcp.sre_agent --model sonnet "High 5xx error rate on checkout service"
+python -m intelligent_sre_mcp.sre_agent --model sonnet --remediate "Pods are CrashLoopBackOff in production"
+python -m intelligent_sre_mcp.sre_agent --model opus "Database down, 100% error rate"
 # Or use the convenience script:
 ./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
 
@@ -51,6 +62,83 @@ python -m intelligent_sre_mcp.bot.slack_bot
 #   POST http://localhost:30080/alertmanager/webhook
 #   GET  http://localhost:30080/alerts           — list all saved alerts
 #   GET  http://localhost:30080/alerts/<id>      — single alert with investigation
+
+# Webhook-triggered agent model selection (set in k8s/base/app/intelligent-sre-mcp.yaml):
+#   SRE_MODEL               — Phase 1 investigation model (default: claude-haiku-4-5, cheap/fast)
+#   SRE_REMEDIATION_MODEL   — Phase 2 remediation model (default: claude-sonnet-4-5, more capable)
+#
+# Why two models: haiku is sufficient for read-only investigation but too weak to reliably
+# execute multi-step tool-based remediation (scale_deployment, delete_failed_pods chains).
+# Sonnet is the minimum recommended capability for the healing pass.
+#
+# The in-pod agent uses API_URL=http://localhost:8080 (internal port, set in K8s manifest).
+# Do NOT use localhost:30080 for in-pod agent calls — that is the NodePort (external only).
+```
+
+## Chaos / remediation test
+
+End-to-end test that deploys broken pods, triggers the automated pipeline, and verifies the agent remediates them:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+./scripts/test-remediation.sh
+
+# Keep chaos pods after test for manual inspection:
+SKIP_CLEANUP=1 ./scripts/test-remediation.sh
+
+# Deploy / teardown chaos pods manually:
+kubectl apply  -k k8s/chaos/
+kubectl delete -k k8s/chaos/
+```
+
+Failure modes simulated (`k8s/chaos/`) — all fixable via `patch_deployment`:
+
+| Pod | Failure | Root cause | Agent fix |
+|---|---|---|---|
+| `crash-worker` | CrashLoopBackOff | `SIMULATE_CRASH=true` env var causes exit 1 | patch env var to `false` |
+| `dependent-worker` | Init:Error | init blocked by crash-worker being down (cascade) | auto-recovers once crash-worker is healthy |
+| `pending-worker` | Pending | impossible `nodeSelector: hardware-accelerator: a100-gpu` | patch `nodeSelector` to `null` |
+| `sick-api` | Running/NotReady | readiness probe targets port 9999 (not listening) | patch `readinessProbe` to `null` |
+
+Healing tool priority: `patch_deployment` (fix config) > `rollback_deployment` (revert bad deploy) > `restart_pod` (transient) > `scale_deployment` to 0 (emergency stop only).
+
+New endpoint: `POST /healing/patch-deployment` — applies a K8s strategic merge patch to fix a deployment in place without stopping it.
+
+## Token cost tuning
+
+Every agent run logs actual token usage + estimated cost.
+CLI output: `[tokens] input=1243  output=312  cost~=$0.00504  model=claude-sonnet-4-5`
+K8s log (JSON): `{"msg":"SRE agent finished","input_tokens":1243,"output_tokens":312,"estimated_cost_usd":0.005043}`
+
+### Pricing reference (per million tokens)
+| Model | Input | Output | Typical cost/run |
+|---|---|---|---|
+| `claude-haiku-4-5` | $0.25 | $1.25 | ~$0.001 — routine checks (default Phase 1) |
+| `claude-sonnet-4-5` | $3.00 | $15.00 | ~$0.005–$0.05 — remediation (default Phase 2) |
+| `claude-opus-4-6` | $15.00 | $75.00 | ~$0.10 — critical incidents only |
+
+### Cost levers (env vars in `k8s/base/app/intelligent-sre-mcp.yaml`)
+| Var | Default | Effect |
+|---|---|---|
+| `SRE_MODEL` | `claude-haiku-4-5` | Phase 1 investigation model — cheapest, fast |
+| `SRE_REMEDIATION_MODEL` | `claude-sonnet-4-5` | Phase 2 remediation model — more capable |
+| `SRE_MAX_TOKENS` | `4096` | Output token ceiling — you pay for tokens generated, not this limit |
+| `SRE_INVESTIGATION_CTX_CHARS` | `3000` | Max chars of Phase 1 text embedded in Phase 2 prompt — cuts sonnet input tokens |
+
+### Quick tuning
+```bash
+# Cheapest possible (investigation only, no remediation):
+kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_MODEL=haiku
+
+# More aggressive context truncation (smaller Phase 2 input):
+kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_INVESTIGATION_CTX_CHARS=1500
+
+# Raise output ceiling if remediation_summary looks cut off:
+kubectl set env deploy/intelligent-sre-mcp -n intelligent-sre SRE_MAX_TOKENS=6144
+
+# CLI: see real token cost per run
+python -m intelligent_sre_mcp.sre_agent "check health"
+# prints: [tokens] input=842  output=201  cost~=$0.00028  model=claude-haiku-4-5
 ```
 
 ## Slash commands

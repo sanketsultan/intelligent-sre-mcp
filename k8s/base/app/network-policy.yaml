@@ -201,3 +201,51 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: intelligent-sre
+
+---
+# 9. Alertmanager – ingress from Prometheus (alert delivery) and NodePort traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-alertmanager-ingress
+  namespace: intelligent-sre
+spec:
+  podSelector:
+    matchLabels:
+      app: alertmanager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9093
+    # Allow NodePort access from outside the cluster
+    - ports:
+        - port: 9093
+
+---
+# 10. Scrape targets – ingress from Prometheus (metrics collection)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-scrape-target-ingress
+  namespace: intelligent-sre
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - kube-state-metrics
+          - otel-collector
+          - demo-metrics
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus

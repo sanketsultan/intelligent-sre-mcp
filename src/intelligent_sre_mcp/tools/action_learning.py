@@ -5,11 +5,15 @@ Action learning and effectiveness tracking for healing actions.
 from __future__ import annotations
 
 import contextvars
+import logging
 import os
 import sqlite3
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
@@ -29,12 +33,16 @@ class ActionOutcome:
 
 class ActionHistoryStore:
     def __init__(self, db_path: Optional[str] = None) -> None:
-        self.db_path = db_path or os.getenv("ACTION_HISTORY_DB", "/tmp/intelligent_sre_actions.db")
+        # os.getenv returns "" (falsy) when the var is set to empty string (e.g. dev override).
+        # Treat empty string the same as unset so we always fall back to a real file path.
+        self.db_path = (
+            db_path or os.getenv("ACTION_HISTORY_DB") or "/tmp/intelligent_sre_actions.db"
+        )
         self.is_postgres = self._is_postgres_url(self.db_path)
         self.placeholder = "%s" if self.is_postgres else "?"
         if not self.is_postgres:
             self._ensure_directory()
-        self._init_db()
+        self._init_db_with_retry()
 
     def _ensure_directory(self) -> None:
         directory = os.path.dirname(self.db_path)
@@ -47,6 +55,29 @@ class ActionHistoryStore:
                 raise RuntimeError("psycopg2 is required for PostgreSQL backend")
             return psycopg2.connect(self.db_path)
         return sqlite3.connect(self.db_path)
+
+    def _init_db_with_retry(self, max_attempts: int = 10, base_delay: float = 2.0) -> None:
+        """Initialise the database schema with exponential back-off.
+
+        Needed for Kubernetes startup where the Postgres pod may not be
+        accepting connections yet when the API pod starts.
+        """
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self._init_db()
+                return
+            except Exception as exc:
+                if attempt == max_attempts:
+                    raise
+                delay = base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    "DB init attempt %d/%d failed (%s); retrying in %.0fs",
+                    attempt,
+                    max_attempts,
+                    exc,
+                    delay,
+                )
+                time.sleep(delay)
 
     def _init_db(self) -> None:
         with self._connect() as conn:

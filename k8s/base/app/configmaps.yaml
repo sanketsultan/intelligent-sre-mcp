@@ -7,6 +7,7 @@ data:
   prometheus.yml: |
     global:
       scrape_interval: 15s
+      scrape_timeout: 10s
       evaluation_interval: 15s
 
     alerting:
@@ -35,6 +36,9 @@ data:
           - targets: ["otel-collector:9464"]
       
       - job_name: "kube-state-metrics"
+        # kube-state-metrics generates many metrics; allow more time than the global default
+        scrape_timeout: 30s
+        scrape_interval: 30s
         static_configs:
           - targets: ["kube-state-metrics:8080"]
 

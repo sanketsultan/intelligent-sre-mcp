@@ -111,6 +111,12 @@ spec:
         app: kube-state-metrics
     spec:
       serviceAccountName: kube-state-metrics
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: kube-state-metrics
         image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.1
@@ -119,6 +125,14 @@ spec:
           containerPort: 8080
         - name: telemetry
           containerPort: 8081
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+              - ALL
         livenessProbe:
           httpGet:
             path: /healthz

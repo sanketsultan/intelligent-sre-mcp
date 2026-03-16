@@ -1,0 +1,92 @@
+---
+# sick-api: simulates a service that starts successfully but is never considered
+# healthy by Kubernetes because its readiness probe always fails.
+# The container runs fine (sleeping) but port 9999 is never opened, so the
+# httpGet readiness probe always gets "connection refused".
+# Result: Pod shows Running but 0/1 Ready — never receives traffic, never enters
+#         service endpoints. Causes downstream timeouts for anything calling sick-api-svc.
+# Agent fix (preferred): patch_deployment to remove the broken readiness probe.
+#   patch: {"spec":{"template":{"spec":{"containers":[{"name":"sick-api","readinessProbe":null}]}}}}
+# After the patch Kubernetes removes the probe and the pod immediately becomes Ready.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sick-api
+  namespace: intelligent-sre
+  labels:
+    app: sick-api
+    chaos-test: "true"
+    failure-mode: readiness-probe-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sick-api
+  template:
+    metadata:
+      labels:
+        app: sick-api
+        chaos-test: "true"
+        failure-mode: readiness-probe-fail
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sick-api
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "sick-api: started (but health endpoint is broken)"
+              echo "sick-api: readiness probe on :9999/health will always fail"
+              sleep 3600
+          # Readiness probe points to port 9999 — nothing is listening there.
+          # The pod stays Running but never becomes Ready.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9999
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 3
+          # Liveness probe is generous so the pod is not killed (just stays NotReady).
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "echo alive"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+---
+# Service for sick-api — exists but has no ready endpoints because the pod
+# is never Ready. Callers will get connection timeouts.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sick-api-svc
+  namespace: intelligent-sre
+  labels:
+    app: sick-api
+    chaos-test: "true"
+spec:
+  selector:
+    app: sick-api
+  ports:
+    - port: 9999
+      targetPort: 9999

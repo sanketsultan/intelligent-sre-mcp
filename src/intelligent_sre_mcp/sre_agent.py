@@ -51,40 +51,49 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-You are an expert Site Reliability Engineer (SRE) operating an intelligent incident response \
-system. Your mission is to maintain system health through systematic investigation and targeted \
-remediation.
+You are an SRE agent. Be terse. Every word costs money.
 
-## Methodology
+## Output Rules — MUST follow exactly
+- No preamble. No "I will now...", "Let me...", "Sure, I'll...". Start with the first tool call or the answer.
+- No restating the question or summarising what you are about to do.
+- After tool calls, write findings as a bullet list only. One line per pod/service. No paragraphs.
+- Max 15 lines of text total in the final response.
+- No "How to prevent" or post-mortem sections unless the user explicitly asks.
+- Numbers and names only — no adjectives, no filler phrases.
 
-### Phase 1 — Investigation (ALWAYS run first)
-1. Call `detect_comprehensive` for a full system health snapshot
-2. Run targeted PromQL queries to quantify anomalies (error rates, latencies, saturation)
-3. Inspect failing pods, recent Kubernetes events, and relevant container logs
-4. Call `detect_correlations` to identify root cause chains
-5. Summarise your findings clearly — state exactly *what* is broken and *why*
+## Investigation sequence
+1. `detect_comprehensive` — system snapshot
+2. `get_failing_pods` — enumerate broken pods
+3. `get_pod_logs` on each failing pod — read the error
+4. `get_events` if the cause is not clear from logs
+5. Output: one bullet per broken pod: `<pod>: <status> — <root cause in 5 words>`
 
-### Phase 2 — Remediation (only when approved by the user or explicitly requested)
-1. Apply the minimal effective healing action
-2. Re-query the relevant metrics after ~30 s to verify recovery
-3. Record the outcome via `record_agent_activity`
-4. Write a concise post-mortem:
-   - **What happened** / **Root cause** / **Action taken** / **How to prevent**
-5. Create a GitHub Issue post-mortem via `create_github_issue`
+## Remediation — act immediately, no confirmation needed
+Healing tools present = you are authorised. Do not ask. Execute in this priority order:
 
-## Runbooks & Alerts
-- Call `get_alerts` early — Alertmanager already knows which SLOs are breached
-- Call `list_runbooks` to identify the best matching playbook for the incident type
-- Call `execute_runbook` to get an ordered, tool-by-tool investigation and remediation plan
-- Follow the runbook steps in order unless evidence points to a different root cause
+1. `patch_deployment` — FIRST for config bugs
+   - Pending (bad nodeSelector): `{"spec":{"template":{"spec":{"nodeSelector":null}}}}`
+   - NotReady (bad probe): `{"spec":{"template":{"spec":{"containers":[{"name":"<c>","readinessProbe":null}]}}}}`
+   - CrashLoop (bad env var): `{"spec":{"template":{"spec":{"containers":[{"name":"<c>","env":[{"name":"VAR","value":"fixed"}]}]}}}}`
 
-## Safety Rules
-- NEVER start remediation before completing Phase 1 investigation
-- NEVER drain or cordon a node without explicit user confirmation in the prompt
-- Prefer restart > scale > rollback in that order of invasiveness
-- Always explain your reasoning BEFORE taking any healing action
-- Set `dry_run=true` first when probing destructive operations
-- If unsure about a remediation, ask the user for confirmation
+2. `rollback_deployment` — only if a recent image change broke a previously working deploy
+
+3. `restart_pod` — only for transient failures (OOM spike, one-off deadlock)
+
+4. `scale_deployment` — scale UP for load only; scale-to-0 = emergency stop, NOT a fix
+
+5. `delete_failed_pods` — cleanup after fix, not before
+
+Fix upstream services before downstream. Each deployment has its own cooldown — patch all in sequence.
+
+## After healing
+Call `get_failing_pods` or `get_deployment_status` to confirm status changed.
+Output: `<deployment>: FIXED (Running/Ready)` or `<deployment>: STILL BROKEN — <reason>`.
+No other text.
+
+## Safety
+- Never drain/cordon a node without explicit user instruction
+- Never scale to 0 unless the pod is actively causing damage and config fix is unknown
 """
 
 # ---------------------------------------------------------------------------
@@ -402,11 +411,53 @@ HEALING_TOOLS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "patch_deployment",
+        "description": (
+            "Apply a strategic merge patch to fix a deployment's configuration in place. "
+            "PREFERRED first healing action — repairs root cause and keeps the service running "
+            "rather than removing it. Use cases:\n"
+            "  - Pending/unschedulable: patch out the impossible nodeSelector or resource request\n"
+            "  - Running/NotReady: fix or null-out the readiness probe pointing at the wrong port\n"
+            "  - CrashLoopBackOff (bad config): fix the env var or container command\n"
+            "Strategic merge patch semantics: set a field to null to remove it; container arrays "
+            "are merged by name. Set dry_run=true to preview without applying."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "namespace": {"type": "string", "description": "Kubernetes namespace"},
+                "deployment_name": {"type": "string"},
+                "patch": {
+                    "type": "object",
+                    "description": (
+                        "Kubernetes strategic merge patch body. Examples:\n"
+                        "Remove impossible nodeSelector: "
+                        '{"spec":{"template":{"spec":{"nodeSelector":null}}}}\n'
+                        "Remove failing readiness probe (container name 'sick-api'): "
+                        '{"spec":{"template":{"spec":{"containers":'
+                        '[{"name":"sick-api","readinessProbe":null}]}}}}\n'
+                        "Fix container command (container name 'crash-worker'): "
+                        '{"spec":{"template":{"spec":{"containers":'
+                        '[{"name":"crash-worker","command":'
+                        '["sh","-c","echo ok; sleep 3600"]}]}}}}\n'
+                        "Fix env var: "
+                        '{"spec":{"template":{"spec":{"containers":'
+                        '[{"name":"app","env":'
+                        '[{"name":"SHOULD_CRASH","value":"false"}]}]}}}}'
+                    ),
+                },
+                "dry_run": {"type": "boolean", "description": "Preview only (default: false)"},
+            },
+            "required": ["namespace", "deployment_name", "patch"],
+        },
+    },
+    {
         "name": "rollback_deployment",
         "description": (
             "Roll back a deployment to its previous revision. "
-            "Use ONLY after confirming the current revision introduced the regression. "
-            "This is the most invasive healing action — prefer restart or scale first."
+            "Use when a recent code or image change introduced the regression and the previous "
+            "revision was known to be healthy. "
+            "Call get_deployment_status first to confirm a prior revision exists."
         ),
         "input_schema": {
             "type": "object",
@@ -683,6 +734,19 @@ async def execute_tool(
                 },
             )
 
+        case "patch_deployment":
+            result = await _call_api(
+                http,
+                "post",
+                "/healing/patch-deployment",
+                json={
+                    "namespace": tool_input["namespace"],
+                    "deployment_name": tool_input["deployment_name"],
+                    "patch": tool_input["patch"],
+                    "dry_run": tool_input.get("dry_run", False),
+                },
+            )
+
         case "rollback_deployment":
             params = {
                 "namespace": tool_input["namespace"],
@@ -802,12 +866,31 @@ async def execute_tool(
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
+
+# Cost reference (per million tokens, as of 2025):
+#   claude-haiku-4-5   $0.25 input  / $1.25 output   (default — cheapest)
+#   claude-sonnet-4-5  $3.00 input  / $15.00 output  (better reasoning)
+#   claude-opus-4-6    $15.00 input / $75.00 output  (most capable, most expensive)
+SUPPORTED_MODELS = {
+    "haiku": "claude-haiku-4-5",
+    "sonnet": "claude-sonnet-4-5",
+    "opus": "claude-opus-4-6",
+    # also accept full model IDs directly
+    "claude-haiku-4-5": "claude-haiku-4-5",
+    "claude-sonnet-4-5": "claude-sonnet-4-5",
+    "claude-opus-4-6": "claude-opus-4-6",
+}
+
+
 async def run_sre_agent(
     prompt: str,
     *,
     remediate: bool = False,
     api_base: str = "http://localhost:30080",
     api_key: str | None = None,
+    max_tokens: int = 4096,
+    model: str = DEFAULT_MODEL,
     verbose: bool = False,
 ) -> str:
     """
@@ -819,6 +902,8 @@ async def run_sre_agent(
                    If False (default), the agent runs in investigation-only mode.
         api_base:  Base URL of the intelligent-sre-mcp FastAPI server.
         api_key:   Anthropic API key (falls back to ANTHROPIC_API_KEY env var).
+        model:     Claude model to use. Accepts short aliases (haiku/sonnet/opus)
+                   or full model IDs. Defaults to SRE_MODEL env var or haiku.
         verbose:   If True, emit DEBUG logs.
 
     Returns:
@@ -832,7 +917,8 @@ async def run_sre_agent(
 
     tools = INVESTIGATION_TOOLS + (HEALING_TOOLS if remediate else [])
     mode = "investigate+remediate" if remediate else "investigate-only"
-    logger.info("SRE agent starting | mode=%s api=%s", mode, api_base)
+    resolved_model = SUPPORTED_MODELS.get(model, model)
+    logger.info("SRE agent starting | mode=%s model=%s api=%s", mode, resolved_model, api_base)
 
     resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not resolved_key:
@@ -845,13 +931,16 @@ async def run_sre_agent(
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     final_text = ""
 
+    # Accumulate token usage across all turns (each tool-call loop = one API call).
+    total_input_tokens = 0
+    total_output_tokens = 0
+
     async with httpx.AsyncClient(base_url=api_base, timeout=30.0) as http:
         while True:
             # Stream the response so text appears incrementally
             async with claude.messages.stream(
-                model="claude-opus-4-6",
-                max_tokens=8192,
-                thinking={"type": "adaptive"},
+                model=resolved_model,
+                max_tokens=max_tokens,
                 system=SYSTEM_PROMPT,
                 tools=tools,
                 messages=messages,
@@ -860,6 +949,11 @@ async def run_sre_agent(
                     print(text, end="", flush=True)
 
                 response = await stream.get_final_message()
+
+            # Accumulate token counts from this turn.
+            if response.usage:
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
 
             if response.stop_reason == "end_turn":
                 print()  # trailing newline
@@ -897,7 +991,30 @@ async def run_sre_agent(
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
 
-    logger.info("SRE agent finished | mode=%s", mode)
+    # Per-million-token pricing (input, output).  Update when Anthropic changes prices.
+    _PRICE_PER_MTok: dict[str, tuple[float, float]] = {
+        "claude-haiku-4-5": (0.25, 1.25),
+        "claude-sonnet-4-5": (3.00, 15.00),
+        "claude-opus-4-6": (15.00, 75.00),
+    }
+    in_price, out_price = _PRICE_PER_MTok.get(resolved_model, (3.00, 15.00))
+    cost_usd = (total_input_tokens * in_price + total_output_tokens * out_price) / 1_000_000
+
+    logger.info(
+        "SRE agent finished",
+        extra={
+            "mode": mode,
+            "model": resolved_model,
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "estimated_cost_usd": round(cost_usd, 6),
+        },
+    )
+    # Also print for CLI users so cost is visible without parsing JSON logs.
+    print(
+        f"\n[tokens] input={total_input_tokens}  output={total_output_tokens}"
+        f"  cost~=${cost_usd:.5f}  model={resolved_model}"
+    )
     return final_text
 
 
@@ -909,24 +1026,46 @@ async def run_sre_agent(
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="sre-agent",
-        description="SRE Incident Response Agent — powered by Claude claude-opus-4-6",
+        description="SRE Incident Response Agent — powered by Claude",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
+Model cost comparison (per million tokens, 2025 pricing):
+  haiku   claude-haiku-4-5   $0.25 input / $1.25 output   cheapest, fast   (default)
+  sonnet  claude-sonnet-4-5  $3.00 input / $15.00 output  balanced
+  opus    claude-opus-4-6    $15.00 input / $75.00 output  most capable
+
+Typical cost per investigation run:
+  haiku  ~$0.001   (recommended for routine health checks)
+  sonnet ~$0.05    (recommended for complex incidents)
+  opus   ~$0.10    (use for critical production incidents)
+
+Set SRE_MODEL env var to avoid typing --model every time:
+  export SRE_MODEL=sonnet
+
 Examples:
-  # Investigate current system health (safe — no changes)
+  # Routine health check — haiku (default, cheapest)
   python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
 
-  # Investigate a specific incident
-  python -m intelligent_sre_mcp.sre_agent "High 5xx error rate on the api service since 10 min"
+  # Specific incident — sonnet for better reasoning
+  python -m intelligent_sre_mcp.sre_agent --model sonnet \\
+      "High 5xx error rate on the api service since 10 min"
 
-  # Investigate AND remediate
-  python -m intelligent_sre_mcp.sre_agent --remediate \\
+  # Investigate AND remediate — sonnet recommended
+  python -m intelligent_sre_mcp.sre_agent --model sonnet --remediate \\
       "Pods are CrashLoopBackOff in the intelligent-sre namespace"
+
+  # Critical incident — opus for maximum capability
+  python -m intelligent_sre_mcp.sre_agent --model opus \\
+      "Database connection pool exhausted, 100% error rate"
 
   # Point to a custom cluster
   python -m intelligent_sre_mcp.sre_agent \\
       --api-url http://my-cluster-nodeport:30080 \\
       "Check health"
+
+  # Persistent model selection via env var
+  export SRE_MODEL=sonnet
+  python -m intelligent_sre_mcp.sre_agent "Investigate latency spike"
 """,
     )
     parser.add_argument(
@@ -946,6 +1085,15 @@ Examples:
         help="intelligent-sre-mcp API base URL (default: %(default)s)",
     )
     parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        metavar="MODEL",
+        help=(
+            "Claude model to use. Aliases: haiku (default, cheapest), sonnet, opus. "
+            "Or set SRE_MODEL env var. (default: %(default)s)"
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         default=False,
@@ -959,6 +1107,7 @@ Examples:
                 args.prompt,
                 remediate=args.remediate,
                 api_base=args.api_url,
+                model=args.model,
                 verbose=args.verbose,
             )
         )

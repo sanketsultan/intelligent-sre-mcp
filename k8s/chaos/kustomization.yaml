@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: intelligent-sre
+
+# Chaos test workloads — deploy to simulate real incident scenarios.
+# Apply:   kubectl apply -k k8s/chaos/
+# Cleanup: kubectl delete -k k8s/chaos/
+#
+# Failure modes created:
+#   crash-worker    -> CrashLoopBackOff  (app exits with code 1)
+#   dependent-worker-> Init:Error        (init container blocked by crash-worker being down — cascade)
+#   pending-worker  -> Pending           (requests 100 CPU cores, impossible to schedule)
+#   sick-api        -> Running/NotReady  (readiness probe always fails, never enters service)
+resources:
+  - crash-worker.yaml
+  - dependent-worker.yaml
+  - pending-worker.yaml
+  - sick-api.yaml

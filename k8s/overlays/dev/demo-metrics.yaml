@@ -34,15 +34,29 @@ spec:
       labels:
         app: demo-metrics
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: demo-metrics
-          image: prom/statsd-exporter:latest
+          image: prom/statsd-exporter:v0.28.0
           ports:
             - containerPort: 9102
               name: metrics
             - containerPort: 9125
               name: statsd
               protocol: UDP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               cpu: 50m

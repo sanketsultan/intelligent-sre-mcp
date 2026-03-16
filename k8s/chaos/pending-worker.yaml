@@ -1,0 +1,56 @@
+---
+# pending-worker: simulates a misconfigured deployment that cannot be scheduled
+# because it requires a node with a hardware label that does not exist in the cluster.
+# Result: Pod stays Pending forever — scheduler finds no matching node.
+# K8s event: "0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector."
+# Agent fix (preferred): patch_deployment to remove the impossible nodeSelector.
+#   patch: {"spec":{"template":{"spec":{"nodeSelector":null}}}}
+# After the patch the scheduler can place the pod and it becomes Running/Ready.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pending-worker
+  namespace: intelligent-sre
+  labels:
+    app: pending-worker
+    chaos-test: "true"
+    failure-mode: pending-unschedulable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pending-worker
+  template:
+    metadata:
+      labels:
+        app: pending-worker
+        chaos-test: "true"
+        failure-mode: pending-unschedulable
+    spec:
+      # Intentionally impossible: no node in the cluster has this label.
+      # docker-desktop only has standard labels (kubernetes.io/os=linux, etc).
+      # This causes: "0/1 nodes are available: 1 node(s) didn't match nodeSelector."
+      nodeSelector:
+        hardware-accelerator: "a100-gpu"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pending-worker
+          image: busybox:1.36
+          command: ["sh", "-c", "echo 'pending-worker: running'; sleep 3600"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
