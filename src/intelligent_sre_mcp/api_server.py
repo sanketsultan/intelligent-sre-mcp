@@ -89,6 +89,16 @@ API_URL = os.getenv("API_URL", "http://localhost:8080")
 SRE_REMEDIATION_MODEL = os.getenv("SRE_REMEDIATION_MODEL", "claude-sonnet-4-5")
 # Model used for the investigation-only pass (cheap, fast).
 SRE_INVESTIGATION_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
+# max_tokens ceiling for the Phase 2 remediation call.  This is an OUTPUT cap —
+# you only pay for tokens actually generated, not the limit.  4096 is sufficient
+# for all normal remediation responses.  Raise via env var if the agent is being
+# truncated mid-response (check remediation_summary ends with "...").
+SRE_MAX_TOKENS = int(os.getenv("SRE_MAX_TOKENS", "4096"))
+# Max characters of Phase 1 investigation to embed in the Phase 2 sonnet prompt.
+# Sonnet charges per INPUT token too; a 10 000-char investigation summary adds
+# ~2 500 input tokens (~$0.008) on every remediation call.  Truncating to 3 000
+# chars captures all root-cause detail the agent needs without the noise.
+_INVESTIGATION_CTX_LIMIT = int(os.getenv("SRE_INVESTIGATION_CTX_CHARS", "3000"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "")
 
@@ -777,9 +787,16 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
     # skips redundant re-investigation and goes straight to healing actions.
     # Each deployment has its own independent rate-limit cooldown, so all broken
     # deployments can be patched sequentially in a single agent pass.
+    #
+    # Truncate the investigation to _INVESTIGATION_CTX_LIMIT chars to keep
+    # sonnet input tokens (and cost) low.  The key root-cause details always
+    # appear in the first few hundred lines; the tail is mostly raw log noise.
+    investigation_ctx = investigation[:_INVESTIGATION_CTX_LIMIT]
+    if len(investigation) > _INVESTIGATION_CTX_LIMIT:
+        investigation_ctx += "\n[... truncated for cost efficiency ...]"
     remediation_prompt = (
         f"{prompt}\n\n"
-        f"PHASE 1 INVESTIGATION COMPLETE. FINDINGS:\n{investigation}\n\n"
+        f"PHASE 1 INVESTIGATION COMPLETE. FINDINGS:\n{investigation_ctx}\n\n"
         f"Proceed directly to Phase 2 remediation. Do NOT re-investigate. "
         f"For every broken deployment identified above, call patch_deployment immediately "
         f"with the correct fix (remove nodeSelector, fix readinessProbe, fix env var, etc). "
@@ -792,7 +809,7 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
             remediate=True,
             api_base=API_URL,
             model=SRE_REMEDIATION_MODEL,
-            max_tokens=8192,
+            max_tokens=SRE_MAX_TOKENS,
         )
         alert_store.update_remediation(
             alert_id, remediation or "No remediation output returned."

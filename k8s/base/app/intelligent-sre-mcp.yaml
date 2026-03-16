@@ -118,6 +118,16 @@ spec:
             # Use sonnet for webhook-triggered remediation; haiku for read-only investigation.
             - name: SRE_REMEDIATION_MODEL
               value: "claude-sonnet-4-5"
+            # Output token ceiling for the Phase 2 remediation pass.  max_tokens is a
+            # ceiling not a floor — you only pay for tokens actually generated.  4096 is
+            # sufficient for all normal remediation responses; raise if the agent response
+            # appears truncated (remediation_summary ends with "...").
+            - name: SRE_MAX_TOKENS
+              value: "4096"
+            # Max chars of Phase 1 investigation embedded in the Phase 2 sonnet prompt.
+            # Root-cause detail appears in the first ~3000 chars; the rest is raw log noise.
+            - name: SRE_INVESTIGATION_CTX_CHARS
+              value: "3000"
 
           # Container-level security: drop all capabilities, read-only FS
           securityContext:

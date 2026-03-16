@@ -917,7 +917,7 @@ async def run_sre_agent(
     remediate: bool = False,
     api_base: str = "http://localhost:30080",
     api_key: str | None = None,
-    max_tokens: int = 8192,
+    max_tokens: int = 4096,
     model: str = DEFAULT_MODEL,
     verbose: bool = False,
 ) -> str:
