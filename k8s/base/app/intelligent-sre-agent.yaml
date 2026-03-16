@@ -143,6 +143,17 @@ spec:
             # Health score (0-100) below which the proactive CronJob triggers remediation.
             - name: SRE_PROACTIVE_HEALTH_THRESHOLD
               value: "50"
+            # GitHub incident tickets — auto-created when the agent cannot remediate.
+            # Set GITHUB_REPO to "owner/repo" (e.g. "acme/infra-incidents").
+            # Leave empty to disable GitHub ticket creation.
+            - name: GITHUB_REPO
+              value: "sanketsultan/intelligent-sre-agent"
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-credentials
+                  key: GITHUB_TOKEN
+                  optional: true  # pod still starts if secret is absent
 
           # Container-level security: drop all capabilities, read-only FS
           securityContext:

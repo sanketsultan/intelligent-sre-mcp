@@ -36,6 +36,12 @@ help:
 	@echo "    make k8s-status   Show pod status in intelligent-sre namespace"
 	@echo "    make k8s-logs     Tail API pod logs"
 	@echo ""
+	@echo "  Chaos / remediation:"
+	@echo "    make chaos-test     Full end-to-end remediation test (deploy + trigger + verify + cleanup)"
+	@echo "    make chaos-deploy   Deploy broken pods only (no trigger)"
+	@echo "    make chaos-teardown Remove all chaos pods"
+	@echo "    make chaos-status   Show chaos pod states"
+	@echo ""
 	@echo "  Smart:"
 	@echo "    make logs         Auto-detect Docker or K8s and tail the right logs"
 	@echo ""
@@ -135,6 +141,25 @@ k8s-logs:
 .PHONY: test
 test:
 	$(PYTEST) tests/unit/ -v
+
+# ---------------------------------------------------------------------------
+# Chaos / remediation
+# ---------------------------------------------------------------------------
+.PHONY: chaos-test
+chaos-test:
+	@bash scripts/test-remediation.sh
+
+.PHONY: chaos-deploy
+chaos-deploy:
+	kubectl apply -k k8s/chaos/
+
+.PHONY: chaos-teardown
+chaos-teardown:
+	kubectl delete -k k8s/chaos/ --ignore-not-found
+
+.PHONY: chaos-status
+chaos-status:
+	kubectl get pods -n intelligent-sre -l chaos-test=true
 
 # ---------------------------------------------------------------------------
 # Lint / format

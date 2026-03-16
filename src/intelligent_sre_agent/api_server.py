@@ -127,6 +127,11 @@ def _should_remediate(severity: str) -> bool:
 _INVESTIGATION_CTX_LIMIT = int(os.getenv("SRE_INVESTIGATION_CTX_CHARS", "3000"))
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "")
+# GitHub incident tickets — created automatically when the agent cannot auto-remediate.
+# Set GITHUB_REPO to "owner/repo" (e.g. "acme/infra-incidents") and GITHUB_TOKEN to a
+# Personal Access Token or GitHub App token with Issues write permission.
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "")
 
 app = FastAPI(title="Intelligent SRE Agent API", version="0.1.0")
 
@@ -767,6 +772,76 @@ async def _post_slack_notification(text: str) -> None:
         logger.warning("Slack notification failed", extra={"error": str(exc)})
 
 
+async def _create_github_incident_issue(
+    alert_name: str,
+    severity: str,
+    investigation: str,
+    remediation_log: str,
+    alert_id: int | None = None,
+) -> str | None:
+    """Open a GitHub Issue for an unresolved incident (best-effort).
+
+    Called automatically when the agent exhausts all remediation attempts
+    (Phase 2 exception, Phase 3 STILL BROKEN, Phase 3 exception).
+    Returns the issue URL on success, None if GitHub is not configured or the
+    call fails.
+    """
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        logger.debug("GitHub incident ticket skipped — GITHUB_TOKEN/GITHUB_REPO not set")
+        return None
+
+    from datetime import date  # noqa: PLC0415
+
+    date_str = date.today().isoformat()
+    title = f"[INCIDENT] {alert_name} — {date_str} (unresolved)"
+    alert_ref = f"Alert ID: {alert_id}" if alert_id else "Alert ID: unknown"
+    body = (
+        f"## Incident Summary\n\n"
+        f"- **Alert**: `{alert_name}`\n"
+        f"- **Severity**: `{severity}`\n"
+        f"- **Date**: {date_str}\n"
+        f"- **{alert_ref}**\n"
+        f"- **Status**: Could not be auto-remediated — manual intervention required\n\n"
+        f"---\n\n"
+        f"## Phase 1 — Investigation\n\n"
+        f"```\n{investigation[:3000]}\n```\n\n"
+        f"---\n\n"
+        f"## Phase 2 / Phase 3 — Remediation Attempts\n\n"
+        f"```\n{remediation_log[:3000]}\n```\n\n"
+        f"---\n\n"
+        f"## Action Required\n\n"
+        f"The SRE agent tried all available remediation strategies and could not resolve this "
+        f"incident. Please investigate manually and close this issue once resolved.\n"
+    )
+    labels = ["incident", "sre-auto-escalation", f"severity:{severity}"]
+    payload: dict[str, Any] = {"title": title, "body": body, "labels": labels}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"https://api.github.com/repos/{GITHUB_REPO}/issues",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {GITHUB_TOKEN}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            url: str = data["html_url"]
+            logger.info(
+                "GitHub incident issue created",
+                extra={"alert_id": alert_id, "issue_url": url},
+            )
+            return url
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Failed to create GitHub incident issue",
+            extra={"alert_id": alert_id, "error": str(exc)},
+        )
+        return None
+
+
 async def _investigate_alert(
     alert_id: int, prompt: str, alert_name: str, severity: str
 ) -> None:
@@ -850,8 +925,12 @@ async def _investigate_alert(
             extra={"alert_id": alert_id, "error": str(exc)},
         )
         alert_store.update_remediation(alert_id, f"Remediation failed: {exc}")
+        issue_url = await _create_github_incident_issue(
+            alert_name, severity, investigation, f"Remediation failed: {exc}", alert_id
+        )
+        issue_ref = f"\nIncident ticket: {issue_url}" if issue_url else ""
         await _post_slack_notification(
-            f"[URGENT] Remediation failed for `{alert_name}`. Error: {exc}\nManual intervention required."
+            f"[URGENT] Remediation failed for `{alert_name}`. Error: {exc}\nManual intervention required.{issue_ref}"
         )
         return
 
@@ -884,16 +963,25 @@ async def _investigate_alert(
         logger.info("Escalation remediation complete", extra={"alert_id": alert_id})
 
         if "STILL BROKEN" in (escalation or ""):
+            issue_url = await _create_github_incident_issue(
+                alert_name, severity, investigation, combined, alert_id
+            )
+            issue_ref = f"\nIncident ticket: {issue_url}" if issue_url else ""
             await _post_slack_notification(
                 f"[URGENT] `{alert_name}` could not be auto-remediated after escalation to "
                 f"{SRE_ESCALATION_MODEL}. Manual intervention required.\n"
-                f"Latest attempt:\n{escalation[:400]}"
+                f"Latest attempt:\n{escalation[:400]}{issue_ref}"
             )
     except Exception as exc:  # noqa: BLE001
         logger.error("Escalation failed", extra={"alert_id": alert_id, "error": str(exc)})
+        remediation_log = f"{remediation}\n\nEscalation failed: {exc}"
+        issue_url = await _create_github_incident_issue(
+            alert_name, severity, investigation, remediation_log, alert_id
+        )
+        issue_ref = f"\nIncident ticket: {issue_url}" if issue_url else ""
         await _post_slack_notification(
             f"[URGENT] Escalation to {SRE_ESCALATION_MODEL} failed for `{alert_name}`. "
-            f"Error: {exc}\nManual intervention required."
+            f"Error: {exc}\nManual intervention required.{issue_ref}"
         )
 
 
