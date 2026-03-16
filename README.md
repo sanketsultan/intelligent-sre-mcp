@@ -2,14 +2,14 @@
 
 AI-powered SRE platform that autonomously detects, investigates, and heals production incidents using Claude.
 
-Alertmanager fires an alert → the agent queries Prometheus, Loki, and Kubernetes → determines root cause → remediates (restart pod, patch deployment, rollback release) → posts a summary to Slack. All with a full audit trail in PostgreSQL.
+Alertmanager fires an alert, the agent queries Prometheus, Loki, and Kubernetes, determines root cause, remediates (restart pod, patch deployment, rollback release), and posts a summary to Slack. All with a full audit trail in PostgreSQL.
 
 ## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — for Docker Compose and local Kubernetes
-- Python 3.10+ — for running the SRE agent CLI
-- `kubectl` — for Kubernetes setup (included with Docker Desktop)
-- `ANTHROPIC_API_KEY` — get one at https://console.anthropic.com
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Docker Compose and local Kubernetes
+- Python 3.10+ for running the SRE agent CLI
+- `kubectl` for Kubernetes setup (included with Docker Desktop)
+- `ANTHROPIC_API_KEY` from https://console.anthropic.com
 
 ---
 
@@ -49,6 +49,19 @@ Set `ANTHROPIC_API_KEY` in `.env` to enable the agent and Slack bot.
 
 ---
 
+## How It Works
+
+When an alert fires:
+
+1. Phase 1 - haiku investigates (always runs, cheap and fast)
+2. Phase 2 - sonnet remediates if severity meets the threshold (default: critical)
+3. Phase 3 - if sonnet leaves anything broken, opus escalates with alternative approaches
+4. If opus also fails, posts an urgent Slack message for human intervention
+
+Every 5 minutes a CronJob hits `/health/proactive-check`. If the health score drops below the threshold (default 50/100), investigation and remediation run automatically without waiting for an alert.
+
+---
+
 ## SRE Agent
 
 ```bash
@@ -83,13 +96,28 @@ python -m intelligent_sre_agent.sre_agent --model opus  "Database down, 100% err
 
 ## Alertmanager Webhook
 
-Fires automatically on every alert — saves to DB and runs background agent investigation.
+Fires automatically on every alert. Saves to DB and runs background agent investigation.
 
 ```bash
 POST http://localhost:8080/alertmanager/webhook   # receives alerts
 GET  http://localhost:8080/alerts                 # list all alerts
 GET  http://localhost:8080/alerts/<id>            # alert + investigation summary
 ```
+
+---
+
+## Tuning the Agent
+
+Set these env vars in `k8s/base/app/intelligent-sre-agent.yaml` or `.env`:
+
+| Var | Default | What it does |
+|-----|---------|--------------|
+| `SRE_AUTO_REMEDIATE_SEVERITY` | `critical` | Set to `warning` to also auto-heal warning alerts |
+| `SRE_PROACTIVE_HEALTH_THRESHOLD` | `50` | Health score below which proactive check triggers remediation |
+| `SRE_REMEDIATION_MODEL` | `claude-sonnet-4-5` | Model for Phase 2 remediation |
+| `SRE_ESCALATION_MODEL` | `claude-opus-4-6` | Model used if sonnet leaves things broken |
+| `SRE_MODEL` | `claude-haiku-4-5` | Model for Phase 1 investigation |
+| `SRE_MAX_TOKENS` | `4096` | Output token ceiling |
 
 ---
 
@@ -104,12 +132,12 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 Failure modes simulated:
 
-| Pod               | Failure          | Agent Fix                        |
-|-------------------|------------------|----------------------------------|
-| `crash-worker`    | CrashLoopBackOff | patch env var causing exit 1     |
+| Pod               | Failure          | Agent Fix                             |
+|-------------------|------------------|---------------------------------------|
+| `crash-worker`    | CrashLoopBackOff | patch env var causing exit 1          |
 | `dependent-worker`| Init:Error       | auto-recovers once crash-worker heals |
-| `pending-worker`  | Pending          | patch impossible nodeSelector    |
-| `sick-api`        | Running/NotReady | patch broken readiness probe     |
+| `pending-worker`  | Pending          | patch impossible nodeSelector         |
+| `sick-api`        | Running/NotReady | patch broken readiness probe          |
 
 ---
 
@@ -119,13 +147,16 @@ Failure modes simulated:
 - **Observability**: Prometheus + Grafana + Loki + Jaeger + OpenTelemetry + Alertmanager
 - **Infra**: Terraform (AWS EKS + RDS) + Kubernetes (Kustomize overlays)
 - **Security**: OPA/Gatekeeper, Falco, Pod Security Standards
-- **CI**: GitHub Actions — ruff, pytest, docker build, kubeconform, tflint, checkov
+- **CI**: GitHub Actions with ruff, pytest, docker build, kubeconform, tflint, checkov
 
 ---
 
 ## Troubleshooting
 
 ```bash
+# Auto-detect environment and tail logs
+make logs
+
 # Docker Compose
 make dev-logs
 docker compose ps
