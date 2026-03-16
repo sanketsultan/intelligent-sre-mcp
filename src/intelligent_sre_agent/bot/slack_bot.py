@@ -20,7 +20,7 @@ Setup
      SLACK_APP_TOKEN  — App-Level Token      (xapp-...)
 7. Run::
 
-     python -m intelligent_sre_mcp.bot.slack_bot
+     python -m intelligent_sre_agent.bot.slack_bot
      # or
      ./scripts/run-slack-bot.sh
 
@@ -59,8 +59,8 @@ import sys
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from slack_bolt.async_app import AsyncApp
 
-from intelligent_sre_mcp.runbooks import list_runbooks
-from intelligent_sre_mcp.sre_agent import run_sre_agent
+from intelligent_sre_agent.runbooks import list_runbooks
+from intelligent_sre_agent.sre_agent import run_sre_agent
 
 logger = logging.getLogger(__name__)
 

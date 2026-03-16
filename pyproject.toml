@@ -36,7 +36,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["intelligent_sre_mcp"]
+known-first-party = ["intelligent_sre_agent"]
 
 # ---------------------------------------------------------------------------
 # Testing: pytest + coverage

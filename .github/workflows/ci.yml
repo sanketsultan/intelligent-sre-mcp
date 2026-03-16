@@ -80,7 +80,7 @@ jobs:
           # treat that as success until unit tests are added.
           pytest tests/unit/ \
             -m "not integration" \
-            --cov=src/intelligent_sre_mcp \
+            --cov=src/intelligent_sre_agent \
             --cov-report=xml \
             --cov-report=term-missing \
             -v \

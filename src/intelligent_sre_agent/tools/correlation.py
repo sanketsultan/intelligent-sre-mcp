@@ -14,7 +14,7 @@ import httpx
 
 # Import K8s tools for event correlation
 try:
-    from intelligent_sre_mcp.tools.k8s_tools import KubernetesTools
+    from intelligent_sre_agent.tools.k8s_tools import KubernetesTools
 except ImportError:
     KubernetesTools = None
 

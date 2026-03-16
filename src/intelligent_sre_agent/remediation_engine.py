@@ -46,7 +46,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-from intelligent_sre_mcp.remediation_store import RemediationStore
+from intelligent_sre_agent.remediation_store import RemediationStore
 
 logger = logging.getLogger(__name__)
 

@@ -86,7 +86,7 @@ Pre-commit hooks run `ruff` automatically on every commit.
 pytest
 
 # Run with coverage report
-pytest --cov=src/intelligent_sre_mcp --cov-report=term-missing
+pytest --cov=src/intelligent_sre_agent --cov-report=term-missing
 
 # Run a specific test file
 pytest tests/test_detection.py -v
@@ -137,7 +137,7 @@ and pushes it to `ghcr.io/sanketsultan/intelligent-sre-agent:v1.0.0`.
 
 ```
 intelligent-sre-agent/
-├── src/intelligent_sre_mcp/   Python package
+├── src/intelligent_sre_agent/   Python package
 │   ├── api_server.py           FastAPI application (29 endpoints)
 │   ├── api_client.py           MCP client implementation
 │   ├── server.py               MCP stdio server entry point

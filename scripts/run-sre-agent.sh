@@ -38,4 +38,4 @@ if [[ -f "${REPO_ROOT}/.venv/bin/activate" ]]; then
 fi
 
 # ── Run the agent ─────────────────────────────────────────────────────────────
-exec python -m intelligent_sre_mcp.sre_agent "$@"
+exec python -m intelligent_sre_agent.sre_agent "$@"

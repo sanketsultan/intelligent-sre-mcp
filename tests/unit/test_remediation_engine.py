@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from intelligent_sre_mcp.remediation_engine import (
+from intelligent_sre_agent.remediation_engine import (
     _ISSUE_TO_PLAYBOOK,
     CONFIDENCE_THRESHOLD,
     PLAYBOOKS,

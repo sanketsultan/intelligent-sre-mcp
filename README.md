@@ -90,10 +90,10 @@ Requires `ANTHROPIC_API_KEY` in `.env` and a running API stack.
 
 ```bash
 # Investigate
-python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+python -m intelligent_sre_agent.sre_agent "What is the current health of the system?"
 
 # Investigate + auto-remediate
-python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLoopBackOff in production"
+python -m intelligent_sre_agent.sre_agent --remediate "Pods are CrashLoopBackOff in production"
 
 # Convenience script
 ./scripts/run-sre-agent.sh "High 5xx error rate on checkout service"
@@ -129,7 +129,7 @@ to a human via the configured Slack notify callback.
 
 ```bash
 # Requires SLACK_BOT_TOKEN + SLACK_APP_TOKEN + ANTHROPIC_API_KEY in .env
-python -m intelligent_sre_mcp.bot.slack_bot
+python -m intelligent_sre_agent.bot.slack_bot
 # Or:
 ./scripts/run-slack-bot.sh
 ```

@@ -63,4 +63,4 @@ echo "  ALERTMANAGER_URL = ${ALERTMANAGER_URL:-http://localhost:9093}"
 echo "  SLACK_CHANNEL    = ${SLACK_CHANNEL:-(not set)}"
 echo "  GITHUB_REPO      = ${GITHUB_REPO:-(not set)}"
 
-exec python -m intelligent_sre_mcp.bot.slack_bot "$@"
+exec python -m intelligent_sre_agent.bot.slack_bot "$@"

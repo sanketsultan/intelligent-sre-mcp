@@ -388,7 +388,7 @@ python3 tests/test_healing_actions.py
 
 ```bash
 # 1. Make code changes
-vim src/intelligent_sre_mcp/tools/healing_actions.py
+vim src/intelligent_sre_agent/tools/healing_actions.py
 
 # 2. Run quick validation
 ./tests/run-all-tests.sh -f  # Fail-fast mode

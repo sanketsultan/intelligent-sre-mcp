@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, ActionOutcome
+from intelligent_sre_agent.tools.action_learning import ActionHistoryStore, ActionOutcome
 
 logger = logging.getLogger(__name__)
 

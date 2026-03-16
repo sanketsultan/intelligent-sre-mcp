@@ -24,17 +24,17 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.resource import ResourceAttributes
 from pydantic import BaseModel
 
-from intelligent_sre_mcp.alert_store import AlertStore
-from intelligent_sre_mcp.remediation_engine import RemediationEngine, list_playbooks
-from intelligent_sre_mcp.remediation_store import RemediationStore
-from intelligent_sre_mcp.tools.action_learning import ActionHistoryStore, set_current_problem_id
-from intelligent_sre_mcp.tools.anomaly_detection import AnomalyDetector
-from intelligent_sre_mcp.tools.correlation import CorrelationEngine
-from intelligent_sre_mcp.tools.healing_actions import HealingActions
+from intelligent_sre_agent.alert_store import AlertStore
+from intelligent_sre_agent.remediation_engine import RemediationEngine, list_playbooks
+from intelligent_sre_agent.remediation_store import RemediationStore
+from intelligent_sre_agent.tools.action_learning import ActionHistoryStore, set_current_problem_id
+from intelligent_sre_agent.tools.anomaly_detection import AnomalyDetector
+from intelligent_sre_agent.tools.correlation import CorrelationEngine
+from intelligent_sre_agent.tools.healing_actions import HealingActions
 
 # Import Kubernetes tools
-from intelligent_sre_mcp.tools.k8s_tools import KubernetesTools
-from intelligent_sre_mcp.tools.pattern_recognition import PatternRecognizer
+from intelligent_sre_agent.tools.k8s_tools import KubernetesTools
+from intelligent_sre_agent.tools.pattern_recognition import PatternRecognizer
 
 # ---------------------------------------------------------------------------
 # Structured JSON logging
@@ -67,7 +67,7 @@ def _configure_logging() -> logging.Logger:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(logging.INFO)
-    return logging.getLogger("intelligent_sre_mcp")
+    return logging.getLogger("intelligent_sre_agent")
 
 
 logger = _configure_logging()
@@ -751,7 +751,7 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
     re-investigation and proceed directly to healing actions.
     """
     # Lazy import avoids circular dependency at module load time
-    from intelligent_sre_mcp.sre_agent import run_sre_agent  # noqa: PLC0415
+    from intelligent_sre_agent.sre_agent import run_sre_agent  # noqa: PLC0415
 
     investigation: str = ""
     try:

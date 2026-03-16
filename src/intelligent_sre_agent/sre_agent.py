@@ -22,13 +22,13 @@ Two-phase pattern
 Usage
 -----
   # Investigate only (safe, no changes)
-  python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+  python -m intelligent_sre_agent.sre_agent "What is the current health of the system?"
 
   # Investigate + remediate
-  python -m intelligent_sre_mcp.sre_agent --remediate "Pods are CrashLooping in production"
+  python -m intelligent_sre_agent.sre_agent --remediate "Pods are CrashLooping in production"
 
   # Custom API endpoint
-  python -m intelligent_sre_mcp.sre_agent --api-url http://my-cluster:30080 "Check health"
+  python -m intelligent_sre_agent.sre_agent --api-url http://my-cluster:30080 "Check health"
 """
 
 from __future__ import annotations
@@ -800,14 +800,14 @@ async def execute_tool(
         # ── Runbooks ──────────────────────────────────────────────────────────
 
         case "list_runbooks":
-            from intelligent_sre_mcp.runbooks import (
+            from intelligent_sre_agent.runbooks import (
                 list_runbooks as _list_runbooks,  # noqa: PLC0415
             )
 
             result = _list_runbooks()
 
         case "execute_runbook":
-            from intelligent_sre_mcp.runbooks import get_runbook  # noqa: PLC0415
+            from intelligent_sre_agent.runbooks import get_runbook  # noqa: PLC0415
 
             rb = get_runbook(tool_input["name"])
             result = rb.to_dict() if rb else {"error": f"Runbook '{tool_input['name']}' not found"}
@@ -1044,28 +1044,28 @@ Set SRE_MODEL env var to avoid typing --model every time:
 
 Examples:
   # Routine health check — haiku (default, cheapest)
-  python -m intelligent_sre_mcp.sre_agent "What is the current health of the system?"
+  python -m intelligent_sre_agent.sre_agent "What is the current health of the system?"
 
   # Specific incident — sonnet for better reasoning
-  python -m intelligent_sre_mcp.sre_agent --model sonnet \\
+  python -m intelligent_sre_agent.sre_agent --model sonnet \\
       "High 5xx error rate on the api service since 10 min"
 
   # Investigate AND remediate — sonnet recommended
-  python -m intelligent_sre_mcp.sre_agent --model sonnet --remediate \\
+  python -m intelligent_sre_agent.sre_agent --model sonnet --remediate \\
       "Pods are CrashLoopBackOff in the intelligent-sre namespace"
 
   # Critical incident — opus for maximum capability
-  python -m intelligent_sre_mcp.sre_agent --model opus \\
+  python -m intelligent_sre_agent.sre_agent --model opus \\
       "Database connection pool exhausted, 100% error rate"
 
   # Point to a custom cluster
-  python -m intelligent_sre_mcp.sre_agent \\
+  python -m intelligent_sre_agent.sre_agent \\
       --api-url http://my-cluster-nodeport:30080 \\
       "Check health"
 
   # Persistent model selection via env var
   export SRE_MODEL=sonnet
-  python -m intelligent_sre_mcp.sre_agent "Investigate latency spike"
+  python -m intelligent_sre_agent.sre_agent "Investigate latency spike"
 """,
     )
     parser.add_argument(
