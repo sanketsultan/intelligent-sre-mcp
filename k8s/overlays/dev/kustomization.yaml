@@ -8,7 +8,6 @@ namespace: intelligent-sre
 resources:
   - ../../base
   - postgres.yaml
-  - postgres-pv.yaml
   - demo-metrics.yaml
 
 # Image tag is injected by CI:

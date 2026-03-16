@@ -1,3 +1,9 @@
+---
+description: Run the full test suite and fix any failures. Use when tests are broken or before opening a PR.
+disable-model-invocation: true
+allowed-tools: Bash, Read, Edit
+---
+
 Run the full test suite and fix any failures.
 
 Steps:

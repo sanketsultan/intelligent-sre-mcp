@@ -1,3 +1,9 @@
+---
+description: Run the full Terraform quality pipeline (fmt, tflint, checkov) and fix any issues. Use when terraform files changed or CI tf-check is failing.
+disable-model-invocation: true
+allowed-tools: Bash, Read, Edit
+---
+
 Run the full Terraform quality pipeline and fix any issues found.
 
 Steps:

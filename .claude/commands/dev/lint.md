@@ -1,3 +1,9 @@
+---
+description: Run the full Python lint and format pipeline and fix all issues. Use when code has style errors or before committing.
+disable-model-invocation: true
+allowed-tools: Bash, Read, Edit
+---
+
 Run the full Python lint + format pipeline and fix all issues.
 
 Steps:

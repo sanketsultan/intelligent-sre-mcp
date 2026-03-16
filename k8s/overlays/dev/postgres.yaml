@@ -108,7 +108,6 @@ spec:
     - metadata:
         name: postgres-data
       spec:
-        storageClassName: hostpath
         accessModes:
           - ReadWriteOnce
         resources:
