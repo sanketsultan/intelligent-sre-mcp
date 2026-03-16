@@ -111,6 +111,13 @@ spec:
                 secretKeyRef:
                   name: anthropic-credentials
                   key: ANTHROPIC_API_KEY
+            # In-pod agent calls back to the API server on its internal port (8080),
+            # not the external NodePort (30080) which is unreachable inside the pod.
+            - name: API_URL
+              value: "http://localhost:8080"
+            # Use sonnet for webhook-triggered remediation; haiku for read-only investigation.
+            - name: SRE_REMEDIATION_MODEL
+              value: "claude-sonnet-4-5"
 
           # Container-level security: drop all capabilities, read-only FS
           securityContext:

@@ -41,7 +41,7 @@ API_URL="${API_URL:-http://localhost:30080}"
 NAMESPACE="intelligent-sre"
 CHAOS_LABEL="chaos-test=true"
 WAIT_FOR_FAILURES="${WAIT_FOR_FAILURES:-50}"  # seconds to wait for pods to fail
-WAIT_FOR_AGENT="${WAIT_FOR_AGENT:-150}"        # seconds for agent to investigate+remediate
+WAIT_FOR_AGENT="${WAIT_FOR_AGENT:-300}"        # seconds for agent to investigate+remediate
 SKIP_CLEANUP="${SKIP_CLEANUP:-0}"
 
 info()    { echo ""; echo "==> $*"; }

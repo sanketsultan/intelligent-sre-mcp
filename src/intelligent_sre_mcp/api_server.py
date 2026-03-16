@@ -79,7 +79,16 @@ TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://otel-collector:4317")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "intelligent-sre-mcp")
 ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
-API_URL = os.getenv("API_URL", "http://localhost:30080")
+# When the agent runs inside the K8s pod it must reach the API server on its
+# internal port (8080), not the external NodePort (30080) which is not bound to
+# localhost inside the container.  Override via env var in the deployment manifest.
+API_URL = os.getenv("API_URL", "http://localhost:8080")
+# Model used by the webhook-triggered remediation pass.  Sonnet is the minimum
+# recommended capability level for multi-step tool-based remediation.  Haiku is
+# too weak to reliably chain detect -> scale_deployment calls.
+SRE_REMEDIATION_MODEL = os.getenv("SRE_REMEDIATION_MODEL", "claude-sonnet-4-5")
+# Model used for the investigation-only pass (cheap, fast).
+SRE_INVESTIGATION_MODEL = os.getenv("SRE_MODEL", "claude-haiku-4-5")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.getenv("SLACK_CHANNEL", "")
 
@@ -701,13 +710,22 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
     """Background task: run the SRE agent for a firing alert and persist results.
 
     Phase 1 (always) — investigation + root-cause analysis + pod-log review.
-    Phase 2 (critical only) — attempt automated remediation.
+    Phase 2 (critical only) — automated remediation using a more capable model.
+
+    Phase 2 receives the Phase 1 investigation results as context so it can skip
+    re-investigation and proceed directly to healing actions.
     """
     # Lazy import avoids circular dependency at module load time
     from intelligent_sre_mcp.sre_agent import run_sre_agent  # noqa: PLC0415
 
+    investigation: str = ""
     try:
-        investigation = await run_sre_agent(prompt, remediate=False, api_base=API_URL)
+        investigation = await run_sre_agent(
+            prompt,
+            remediate=False,
+            api_base=API_URL,
+            model=SRE_INVESTIGATION_MODEL,
+        )
         alert_store.update_investigation(
             alert_id, investigation or "No investigation output returned."
         )
@@ -715,14 +733,6 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
             "Alert investigation complete",
             extra={"alert_id": alert_id, "is_critical": is_critical},
         )
-
-        if is_critical:
-            remediation = await run_sre_agent(prompt, remediate=True, api_base=API_URL)
-            alert_store.update_remediation(
-                alert_id, remediation or "No remediation output returned."
-            )
-            logger.info("Alert remediation complete", extra={"alert_id": alert_id})
-
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "Alert investigation failed",
@@ -731,6 +741,42 @@ async def _investigate_alert(alert_id: int, prompt: str, is_critical: bool) -> N
         alert_store.update_investigation(
             alert_id,
             f"Investigation failed: {exc}",
+        )
+        # Do not attempt remediation if investigation itself failed
+        return
+
+    if not is_critical:
+        return
+
+    # Phase 2: remediation — pass Phase 1 findings as context so the agent
+    # skips redundant re-investigation and goes straight to healing actions.
+    remediation_prompt = (
+        f"{prompt}\n\n"
+        f"PHASE 1 INVESTIGATION COMPLETE. FINDINGS:\n{investigation}\n\n"
+        f"Proceed directly to Phase 2 remediation. "
+        f"The investigation is already done — call the appropriate healing tools "
+        f"(scale_deployment, delete_failed_pods, restart_pod) immediately. "
+        f"Do NOT re-investigate. Do NOT ask for confirmation. Execute now."
+    )
+    try:
+        remediation = await run_sre_agent(
+            remediation_prompt,
+            remediate=True,
+            api_base=API_URL,
+            model=SRE_REMEDIATION_MODEL,
+        )
+        alert_store.update_remediation(
+            alert_id, remediation or "No remediation output returned."
+        )
+        logger.info("Alert remediation complete", extra={"alert_id": alert_id})
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Alert remediation failed",
+            extra={"alert_id": alert_id, "error": str(exc)},
+        )
+        alert_store.update_remediation(
+            alert_id,
+            f"Remediation failed: {exc}",
         )
 
 

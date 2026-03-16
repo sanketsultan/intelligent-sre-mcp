@@ -62,6 +62,17 @@ python -m intelligent_sre_mcp.bot.slack_bot
 #   POST http://localhost:30080/alertmanager/webhook
 #   GET  http://localhost:30080/alerts           — list all saved alerts
 #   GET  http://localhost:30080/alerts/<id>      — single alert with investigation
+
+# Webhook-triggered agent model selection (set in k8s/base/app/intelligent-sre-mcp.yaml):
+#   SRE_MODEL               — Phase 1 investigation model (default: claude-haiku-4-5, cheap/fast)
+#   SRE_REMEDIATION_MODEL   — Phase 2 remediation model (default: claude-sonnet-4-5, more capable)
+#
+# Why two models: haiku is sufficient for read-only investigation but too weak to reliably
+# execute multi-step tool-based remediation (scale_deployment, delete_failed_pods chains).
+# Sonnet is the minimum recommended capability for the healing pass.
+#
+# The in-pod agent uses API_URL=http://localhost:8080 (internal port, set in K8s manifest).
+# Do NOT use localhost:30080 for in-pod agent calls — that is the NodePort (external only).
 ```
 
 ## Chaos / remediation test
