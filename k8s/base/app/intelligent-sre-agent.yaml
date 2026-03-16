@@ -27,6 +27,11 @@ metadata:
     app: intelligent-sre-agent
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0        # kill old pod before creating new — avoids CPU quota exhaustion
+      maxUnavailable: 1  # one pod down at a time is fine for this workload
   selector:
     matchLabels:
       app: intelligent-sre-agent

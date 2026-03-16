@@ -54,7 +54,7 @@ spec:
               resources:
                 requests:
                   cpu: 10m
-                  memory: 16Mi
+                  memory: 32Mi   # must meet LimitRange minimum of 32Mi
                 limits:
                   cpu: 50m
-                  memory: 32Mi
+                  memory: 64Mi

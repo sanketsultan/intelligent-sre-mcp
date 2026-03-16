@@ -406,11 +406,116 @@ ELEVATED_ERROR_RATES = Runbook(
 )
 
 # ---------------------------------------------------------------------------
+# Runbook: Cascading Pod Failure (Init:Error / CrashLoopBackOff dependency chain)
+# ---------------------------------------------------------------------------
+
+CASCADING_POD_FAILURE = Runbook(
+    name="cascading_pod_failure",
+    title="Cascading Pod Failure - Dependency Chain",
+    description=(
+        "One or more pods are stuck in Init:Error or Init:CrashLoopBackOff because their "
+        "init container cannot reach an upstream service. The upstream may itself be "
+        "crashing (CrashLoopBackOff) or simply not serving yet. Fixing the upstream is "
+        "step 1 — but the downstream pod will remain stuck in exponential backoff even "
+        "after the upstream recovers. It must be restarted explicitly to clear the backoff."
+    ),
+    symptoms=[
+        "Pod in Init:Error or Init:CrashLoopBackOff",
+        "Init container logs show 'connection refused' or 'upstream is DOWN'",
+        "Another pod (the upstream) is in CrashLoopBackOff at the same time",
+        "K8s events show BackOff on the init container",
+        "Service has no ready endpoints while upstream pods are crashing",
+    ],
+    investigate=[
+        RunbookStep(
+            order=1,
+            action="List all failing pods to identify the full dependency chain",
+            tool="get_failing_pods",
+            tool_args={"namespace": "intelligent-sre"},
+            rationale="Identify which pods are upstream (crashing) and which are downstream (blocked init)",
+        ),
+        RunbookStep(
+            order=2,
+            action="Read init container logs of the blocked pod",
+            tool="get_pod_logs",
+            tool_args={"namespace": "intelligent-sre", "tail_lines": 30},
+            rationale="Confirm which upstream service the init container is waiting for",
+        ),
+        RunbookStep(
+            order=3,
+            action="Describe the upstream pod to find the crash root cause",
+            tool="get_pod_logs",
+            tool_args={"namespace": "intelligent-sre", "tail_lines": 50},
+            rationale="Identify why the upstream is crashing (bad env var, missing secret, etc.)",
+        ),
+        RunbookStep(
+            order=4,
+            action="Check K8s events for BackOff timing on the downstream pod",
+            tool="get_events",
+            tool_args={"namespace": "intelligent-sre"},
+            rationale="Determine how long the downstream has been in backoff — max backoff is 5m",
+        ),
+    ],
+    remediate=[
+        RunbookStep(
+            order=1,
+            action="Fix the upstream pod first (patch the bad env var or config)",
+            tool="patch_deployment",
+            tool_args={"dry_run": True},
+            rationale="Upstream must be healthy before downstream can start. Fix root cause first.",
+        ),
+        RunbookStep(
+            order=2,
+            action="Verify upstream service has ready endpoints after fix",
+            tool="get_failing_pods",
+            tool_args={"namespace": "intelligent-sre"},
+            rationale="Service endpoints must be populated before downstream init container retries",
+        ),
+        RunbookStep(
+            order=3,
+            action=(
+                "Restart the downstream pod to clear exponential backoff. "
+                "IMPORTANT: Even after the upstream is fixed, the downstream stays stuck in "
+                "CrashLoopBackOff backoff (up to 5 minutes). Use restart_pod or delete the pod "
+                "to force an immediate retry. Do NOT wait — the pod will not retry on its own "
+                "until the backoff timer expires."
+            ),
+            tool="restart_pod",
+            tool_args={"dry_run": False},
+            rationale=(
+                "K8s exponential backoff caps at 5 minutes. The upstream being healthy does not "
+                "automatically trigger a retry. Explicit restart clears backoff immediately."
+            ),
+        ),
+        RunbookStep(
+            order=4,
+            action="Verify downstream pod transitions to Running",
+            tool="get_failing_pods",
+            tool_args={"namespace": "intelligent-sre"},
+            rationale="Confirm both upstream and downstream are healthy before closing the incident",
+        ),
+    ],
+    prevention=[
+        "Add readiness probes to upstream services so K8s only marks them Ready when truly healthy",
+        "Use retry loops with timeout in init containers instead of exit-on-first-failure",
+        "Add a startupProbe to give upstream pods more time before being considered failed",
+        "Consider removing hard init-container dependencies for non-critical services",
+    ],
+)
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
 RUNBOOKS: dict[str, Runbook] = {
-    rb.name: rb for rb in [DB_CONNECTION_EXHAUSTION, HIGH_LATENCY_CASCADE, ELEVATED_ERROR_RATES]
+    rb.name: rb
+    for rb in [
+        DB_CONNECTION_EXHAUSTION,
+        HIGH_LATENCY_CASCADE,
+        ELEVATED_ERROR_RATES,
+        CASCADING_POD_FAILURE,
+    ]
 }
 
 

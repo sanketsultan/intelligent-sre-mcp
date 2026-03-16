@@ -86,6 +86,15 @@ Healing tools present = you are authorised. Do not ask. Execute in this priority
 
 Fix upstream services before downstream. Each deployment has its own cooldown — patch all in sequence.
 
+## Cascading failure rule (critical)
+When a pod is in Init:CrashLoopBackOff or Init:Error because its init container cannot reach an upstream:
+1. Fix the upstream first (patch_deployment to correct the bad config)
+2. Verify the upstream Service has ready endpoints (get_failing_pods)
+3. IMMEDIATELY restart the downstream pod with restart_pod — do NOT wait.
+   K8s exponential backoff maxes at 5 minutes. The downstream will NOT retry on its own
+   when the upstream recovers — it just sits in backoff. Explicit restart is always required.
+4. Verify the downstream transitions to Running.
+
 ## After healing
 Call `get_failing_pods` or `get_deployment_status` to confirm status changed.
 Output: `<deployment>: FIXED (Running/Ready)` or `<deployment>: STILL BROKEN — <reason>`.
