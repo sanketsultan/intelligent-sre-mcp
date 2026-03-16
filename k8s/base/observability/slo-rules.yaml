@@ -2,7 +2,7 @@
 # SLO Recording Rules + Multi-Window Burn Rate Alerts
 # Pattern: Google SRE Book Chapter 5 – "Alerting on Burn Rate"
 #
-# SLO targets for intelligent-sre-mcp:
+# SLO targets for intelligent-sre-agent:
 #   Availability  : 99.5%  (error budget 0.5% = 43.8 min / 30 days)
 #   Error rate    : < 0.5% 5xx responses
 #   Latency p95   : < 500 ms
@@ -25,12 +25,12 @@ spec:
         # Good requests: non-5xx HTTP responses from the MCP API
         - record: slo:http_requests_good:rate5m
           expr: >
-            sum(rate(http_requests_total{job="intelligent-sre-mcp",status!~"5.."}[5m]))
+            sum(rate(http_requests_total{job="intelligent-sre-agent",status!~"5.."}[5m]))
 
         # Total requests
         - record: slo:http_requests_total:rate5m
           expr: >
-            sum(rate(http_requests_total{job="intelligent-sre-mcp"}[5m]))
+            sum(rate(http_requests_total{job="intelligent-sre-agent"}[5m]))
 
         # Error ratio (5xx / total); 0 when no traffic
         - record: slo:error_ratio:rate5m
@@ -44,14 +44,14 @@ spec:
           expr: >
             histogram_quantile(0.95,
               sum by (le) (
-                rate(http_request_duration_seconds_bucket{job="intelligent-sre-mcp"}[5m])
+                rate(http_request_duration_seconds_bucket{job="intelligent-sre-agent"}[5m])
               )
             )
 
         # Availability (uptime) – fraction of time the service is up
         - record: slo:availability:rate5m
           expr: >
-            avg_over_time(up{job="intelligent-sre-mcp"}[5m])
+            avg_over_time(up{job="intelligent-sre-agent"}[5m])
 
     # -----------------------------------------------------------------------
     # 2. Multi-window error budget burn rates
@@ -65,36 +65,36 @@ spec:
         - record: slo:burn_rate:1h
           expr: >
             (
-              sum(rate(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[1h]))
+              sum(rate(http_requests_total{job="intelligent-sre-agent",status=~"5.."}[1h]))
               /
-              sum(rate(http_requests_total{job="intelligent-sre-mcp"}[1h]))
+              sum(rate(http_requests_total{job="intelligent-sre-agent"}[1h]))
             ) / 0.005
 
         # Medium window burn rate (6 h)
         - record: slo:burn_rate:6h
           expr: >
             (
-              sum(rate(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[6h]))
+              sum(rate(http_requests_total{job="intelligent-sre-agent",status=~"5.."}[6h]))
               /
-              sum(rate(http_requests_total{job="intelligent-sre-mcp"}[6h]))
+              sum(rate(http_requests_total{job="intelligent-sre-agent"}[6h]))
             ) / 0.005
 
         # Long window burn rate (3 d)
         - record: slo:burn_rate:3d
           expr: >
             (
-              sum(rate(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[3d]))
+              sum(rate(http_requests_total{job="intelligent-sre-agent",status=~"5.."}[3d]))
               /
-              sum(rate(http_requests_total{job="intelligent-sre-mcp"}[3d]))
+              sum(rate(http_requests_total{job="intelligent-sre-agent"}[3d]))
             ) / 0.005
 
         # Remaining error budget (fraction of 30-day budget left)
         - record: slo:error_budget_remaining:30d
           expr: >
             1 - (
-              sum(increase(http_requests_total{job="intelligent-sre-mcp",status=~"5.."}[30d]))
+              sum(increase(http_requests_total{job="intelligent-sre-agent",status=~"5.."}[30d]))
               /
-              (sum(increase(http_requests_total{job="intelligent-sre-mcp"}[30d])) * 0.005)
+              (sum(increase(http_requests_total{job="intelligent-sre-agent"}[30d])) * 0.005)
             )
 
     # -----------------------------------------------------------------------
@@ -110,14 +110,14 @@ spec:
           labels:
             severity: critical
             slo:       availability
-            service:   intelligent-sre-mcp
+            service:   intelligent-sre-agent
           annotations:
             summary: "SLO fast burn: error budget draining critically fast"
             description: >
               The 1-hour burn rate is {{ $value | printf "%.1f" }}×
               (threshold 14.4×).  At this rate the 30-day error budget will be
               exhausted in less than 2 hours.  Immediate action required.
-            runbook_url: "https://github.com/sanketsultan/intelligent-sre-mcp/wiki/runbooks/slo-fast-burn"
+            runbook_url: "https://github.com/sanketsultan/intelligent-sre-agent/wiki/runbooks/slo-fast-burn"
 
         # --- WARNING: slow burn (5% budget consumed in 6 h → ticket) ---
         # Burn rate > 6 for 15 min sustained (6 h window)
@@ -127,14 +127,14 @@ spec:
           labels:
             severity: warning
             slo:       availability
-            service:   intelligent-sre-mcp
+            service:   intelligent-sre-agent
           annotations:
             summary: "SLO slow burn: error budget depleting"
             description: >
               The 6-hour burn rate is {{ $value | printf "%.1f" }}×
               (threshold 6×).  5% of the 30-day error budget will be
               consumed within 6 hours if this rate continues.
-            runbook_url: "https://github.com/sanketsultan/intelligent-sre-mcp/wiki/runbooks/slo-slow-burn"
+            runbook_url: "https://github.com/sanketsultan/intelligent-sre-agent/wiki/runbooks/slo-slow-burn"
 
         # --- INFO: trend burn (10% budget in 3 d → trend alert) ---
         - alert: SLOErrorBudgetTrendBurn
@@ -143,7 +143,7 @@ spec:
           labels:
             severity: info
             slo:       availability
-            service:   intelligent-sre-mcp
+            service:   intelligent-sre-agent
           annotations:
             summary: "SLO trend: sustained elevated error rate"
             description: >
@@ -158,7 +158,7 @@ spec:
           labels:
             severity: warning
             slo:       latency
-            service:   intelligent-sre-mcp
+            service:   intelligent-sre-agent
           annotations:
             summary: "SLO latency breach: p95 > 500ms"
             description: >

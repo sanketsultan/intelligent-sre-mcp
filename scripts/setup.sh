@@ -108,8 +108,8 @@ echo ""
 
 # --- Build Docker image ---
 info "Step 1/4: Building Docker image"
-docker build -t intelligent-sre-mcp:latest . >/dev/null 2>&1
-success "Docker image built: intelligent-sre-mcp:latest"
+docker build -t intelligent-sre-agent:latest . >/dev/null 2>&1
+success "Docker image built: intelligent-sre-agent:latest"
 echo ""
 
 # --- Deploy to Kubernetes ---

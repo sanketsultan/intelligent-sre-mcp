@@ -10,5 +10,5 @@ resources:
   - security/
 
 commonLabels:
-  project: intelligent-sre-mcp
+  project: intelligent-sre-agent
   managed-by: kustomize

@@ -9,9 +9,9 @@ resources:
   - ../../base
 
 # Image tag is injected by CI:
-#   kustomize edit set image ghcr.io/sanketsultan/intelligent-sre-mcp=ghcr.io/sanketsultan/intelligent-sre-mcp:<tag>
+#   kustomize edit set image ghcr.io/sanketsultan/intelligent-sre-agent=ghcr.io/sanketsultan/intelligent-sre-agent:<tag>
 images:
-  - name: ghcr.io/sanketsultan/intelligent-sre-mcp
+  - name: ghcr.io/sanketsultan/intelligent-sre-agent
     newTag: latest
 
 # Add prod patches here, e.g.:

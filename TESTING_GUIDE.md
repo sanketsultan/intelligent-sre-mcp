@@ -410,8 +410,8 @@ vim src/intelligent_sre_mcp/tools/healing_actions.py
 # Look for: "✓ ALL TESTS PASSED! 🎉"
 
 # 3. Deploy to cluster
-docker build -t intelligent-sre-mcp:latest .
-kubectl rollout restart deployment/intelligent-sre-mcp -n intelligent-sre
+docker build -t intelligent-sre-agent:latest .
+kubectl rollout restart deployment/intelligent-sre-agent -n intelligent-sre
 
 # 4. Post-deployment validation
 ./tests/run-all-tests.sh
@@ -427,7 +427,7 @@ kubectl rollout restart deployment/intelligent-sre-mcp -n intelligent-sre
 ./tests/test-scenarios.sh  # Select failing category
 
 # 3. Check logs
-kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50
+kubectl logs -n intelligent-sre deployment/intelligent-sre-agent --tail=50
 
 # 4. Check API server
 curl http://localhost:30080/health
@@ -456,7 +456,7 @@ jobs:
       - name: Deploy Application
         run: |
           kubectl apply -f k8s/
-          kubectl wait --for=condition=ready pod -l app=intelligent-sre-mcp -n intelligent-sre --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=intelligent-sre-agent -n intelligent-sre --timeout=120s
       
       - name: Run Comprehensive Tests
         run: ./tests/run-all-tests.sh -v
@@ -480,7 +480,7 @@ test_all:
   image: alpine/k8s:latest
   script:
     - kubectl apply -f k8s/
-    - kubectl wait --for=condition=ready pod -l app=intelligent-sre-mcp -n intelligent-sre --timeout=120s
+    - kubectl wait --for=condition=ready pod -l app=intelligent-sre-agent -n intelligent-sre --timeout=120s
     - ./tests/run-all-tests.sh -v
   artifacts:
     when: always
@@ -576,7 +576,7 @@ test_all:
 
 2. **Check Logs**:
    ```bash
-   kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50
+   kubectl logs -n intelligent-sre deployment/intelligent-sre-agent --tail=50
    ```
 
 3. **Verify Deployment**:
@@ -614,4 +614,4 @@ The Intelligent SRE MCP test suite provides:
 
 **Quick Start**: `./tests/run-all-tests.sh`
 
-**Questions?** Check the logs: `kubectl logs -n intelligent-sre deployment/intelligent-sre-mcp --tail=50`
+**Questions?** Check the logs: `kubectl logs -n intelligent-sre deployment/intelligent-sre-agent --tail=50`

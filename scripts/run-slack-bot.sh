@@ -10,7 +10,7 @@
 #   ANTHROPIC_API_KEY   — Anthropic API key
 #
 # Optional:
-#   API_URL             — intelligent-sre-mcp API base URL (default: http://localhost:30080)
+#   API_URL             — intelligent-sre-agent API base URL (default: http://localhost:30080)
 #   ALERTMANAGER_URL    — Alertmanager URL (default: http://localhost:9093)
 #   SLACK_CHANNEL       — default channel for alert notifications
 #   GITHUB_TOKEN        — GitHub token for post-mortem issue creation

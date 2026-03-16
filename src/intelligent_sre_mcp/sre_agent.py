@@ -1,7 +1,7 @@
 """
 SRE Incident Response Agent
 ============================
-Uses Claude claude-opus-4-6 with the intelligent-sre-mcp FastAPI backend to autonomously
+Uses Claude claude-opus-4-6 with the intelligent-sre-agent FastAPI backend to autonomously
 investigate and (optionally) remediate production incidents.
 
 Two-phase pattern
@@ -575,7 +575,7 @@ HEALING_TOOLS: list[dict[str, Any]] = [
 async def _call_api(
     http: httpx.AsyncClient, method: str, path: str, **kwargs: Any
 ) -> dict | list | str:
-    """Call the intelligent-sre-mcp FastAPI and return parsed JSON."""
+    """Call the intelligent-sre-agent FastAPI and return parsed JSON."""
     try:
         response = await getattr(http, method)(path, **kwargs)
         response.raise_for_status()
@@ -900,7 +900,7 @@ async def run_sre_agent(
         prompt:    User's question or incident description.
         remediate: If True, healing tools are available alongside investigation tools.
                    If False (default), the agent runs in investigation-only mode.
-        api_base:  Base URL of the intelligent-sre-mcp FastAPI server.
+        api_base:  Base URL of the intelligent-sre-agent FastAPI server.
         api_key:   Anthropic API key (falls back to ANTHROPIC_API_KEY env var).
         model:     Claude model to use. Accepts short aliases (haiku/sonnet/opus)
                    or full model IDs. Defaults to SRE_MODEL env var or haiku.
@@ -1082,7 +1082,7 @@ Examples:
         "--api-url",
         default=os.getenv("API_URL", "http://localhost:30080"),
         metavar="URL",
-        help="intelligent-sre-mcp API base URL (default: %(default)s)",
+        help="intelligent-sre-agent API base URL (default: %(default)s)",
     )
     parser.add_argument(
         "--model",

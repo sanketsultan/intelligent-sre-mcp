@@ -44,7 +44,7 @@ Environment Variables
   SLACK_BOT_TOKEN   — (required) Bot User OAuth Token (xoxb-...)
   SLACK_APP_TOKEN   — (required) App-Level Token for Socket Mode (xapp-...)
   ANTHROPIC_API_KEY — (required) Anthropic API key for Claude
-  API_URL           — intelligent-sre-mcp FastAPI base URL
+  API_URL           — intelligent-sre-agent FastAPI base URL
                       (default: http://localhost:30080)
   SLACK_CHANNEL     — default channel for alert notifications (optional)
 """
@@ -290,7 +290,7 @@ async def _send_help(say) -> None:
         "`/sre runbooks` — List all structured runbooks\n\n"
         "`@SRE-Bot <prompt>` — Mention to trigger an investigation\n"
         "  Add `--remediate` flag: `@SRE-Bot --remediate Pods crashing`\n\n"
-        "_Powered by Claude - intelligent-sre-mcp_"
+        "_Powered by Claude - intelligent-sre-agent_"
     )
     await say(text=help_text)
 

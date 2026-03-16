@@ -77,7 +77,7 @@ logger = _configure_logging()
 PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090").rstrip("/")
 TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://otel-collector:4317")
-SERVICE_NAME = os.getenv("SERVICE_NAME", "intelligent-sre-mcp")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "intelligent-sre-agent")
 ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
 # When the agent runs inside the K8s pod it must reach the API server on its
 # internal port (8080), not the external NodePort (30080) which is not bound to
