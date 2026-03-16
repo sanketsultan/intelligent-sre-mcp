@@ -165,6 +165,10 @@ SRE / ops (`.claude/commands/skills/`):
 - `/skills:k8s-status` - cluster health summary with service endpoint checks
 - `/skills:chaos deploy|teardown|status` - inject or clean up chaos pods
 - `/skills:chaos-test` - full end-to-end remediation test
+- `/skills:postmortem <incident>` - generate structured postmortem report for a resolved incident
+
+Also available (`.claude/commands/dev/`):
+- `/dev:update-docs` - scan recent commits and update README.md + CLAUDE.md accordingly
 
 ## Conventions
 - Python: ruff enforced, no new deps without pyproject.toml update

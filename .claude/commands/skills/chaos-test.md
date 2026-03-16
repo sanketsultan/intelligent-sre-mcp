@@ -1,3 +1,9 @@
+---
+description: Run the full end-to-end chaos and remediation test to verify the SRE agent can detect and fix all simulated failure modes.
+disable-model-invocation: true
+allowed-tools: Bash
+---
+
 Run the full end-to-end chaos + remediation test to verify the SRE agent can detect and fix all failure modes.
 
 Steps:

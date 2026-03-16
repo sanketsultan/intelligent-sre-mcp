@@ -1,3 +1,9 @@
+---
+description: Build the Docker image and deploy the full stack to Kubernetes. Use when deploying a new version of the agent or applying manifest changes.
+disable-model-invocation: true
+allowed-tools: Bash
+---
+
 Build the Docker image and deploy the full stack to Kubernetes (dev overlay).
 
 Steps:

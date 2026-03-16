@@ -1,3 +1,9 @@
+---
+description: Show a full health summary of the intelligent-sre Kubernetes cluster. Use when checking if the stack is healthy, all pods are running, and services are reachable.
+disable-model-invocation: false
+allowed-tools: Bash
+---
+
 Show a full health summary of the intelligent-sre Kubernetes cluster.
 
 Steps:

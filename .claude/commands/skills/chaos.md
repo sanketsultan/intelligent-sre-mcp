@@ -1,3 +1,10 @@
+---
+description: Deploy or teardown chaos pods for testing SRE agent remediation. Use when setting up failure scenarios or cleaning up after a chaos test.
+argument-hint: deploy|teardown|status
+disable-model-invocation: true
+allowed-tools: Bash
+---
+
 Deploy or teardown chaos pods for testing the SRE agent remediation.
 
 Usage: /chaos deploy    — inject broken pods into the cluster
@@ -5,7 +12,7 @@ Usage: /chaos teardown  — remove all chaos pods
 Usage: /chaos status    — show current chaos pod states
 
 Steps:
-1. Parse the argument (deploy / teardown / status). Default to status if none given.
+1. Parse $ARGUMENTS (deploy / teardown / status). Default to status if none given.
 
 For `deploy`:
 1. Run `kubectl apply -k k8s/chaos/`

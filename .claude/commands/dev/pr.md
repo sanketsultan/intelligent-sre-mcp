@@ -1,3 +1,9 @@
+---
+description: Create a pull request from the current branch to master. Use when work is ready for review.
+disable-model-invocation: true
+allowed-tools: Bash
+---
+
 Create a pull request from the current branch to master.
 
 Steps:

@@ -1,3 +1,9 @@
+---
+description: Update README.md and CLAUDE.md to reflect recent code changes. Use after adding features, new env vars, new endpoints, or new skills.
+disable-model-invocation: true
+allowed-tools: Bash, Read, Edit
+---
+
 Update project documentation to reflect recent code changes.
 
 Steps:

@@ -1,3 +1,9 @@
+---
+description: Check the latest CI run on the current branch and fix all failures. Use when a CI pipeline is red.
+disable-model-invocation: true
+allowed-tools: Bash, Read, Edit
+---
+
 Check the latest CI run on the current branch and fix all failures.
 
 Steps:
