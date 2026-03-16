@@ -152,23 +152,23 @@ python -m intelligent_sre_agent.sre_agent "check health"
 
 ## Slash commands
 
-Dev quality (`.claude/commands/dev/`):
-- `/dev:lint` - ruff check + format, auto-fix all issues
-- `/dev:test` - run pytest, fix failures
-- `/dev:tf-check` - terraform fmt + tflint + checkov, fix all issues
-- `/dev:ci-fix` - inspect latest CI run, fix all failing jobs
-- `/dev:pr` - create PR to master with summary and test plan
+Each skill lives in `.claude/skills/<name>/SKILL.md`.
 
-SRE / ops (`.claude/commands/skills/`):
-- `/skills:sre <prompt>` - run SRE agent against live stack; add `--remediate` to heal
-- `/skills:deploy` - docker build + kubectl apply + rollout status
-- `/skills:k8s-status` - cluster health summary with service endpoint checks
-- `/skills:chaos deploy|teardown|status` - inject or clean up chaos pods
-- `/skills:chaos-test` - full end-to-end remediation test
-- `/skills:postmortem <incident>` - generate structured postmortem report for a resolved incident
+Dev quality:
+- `/lint` - ruff check + format, auto-fix all issues
+- `/test` - run pytest, fix failures
+- `/tf-check` - terraform fmt + tflint + checkov, fix all issues
+- `/ci-fix` - inspect latest CI run, fix all failing jobs
+- `/pr` - create PR to master with summary and test plan
+- `/update-docs` - scan recent commits and update README.md + CLAUDE.md
 
-Also available (`.claude/commands/dev/`):
-- `/dev:update-docs` - scan recent commits and update README.md + CLAUDE.md accordingly
+SRE / ops:
+- `/sre [--remediate] <prompt>` - run SRE agent against live stack; add `--remediate` to heal
+- `/deploy` - docker build + kubectl apply + rollout status
+- `/k8s-status` - cluster health summary with service endpoint checks
+- `/chaos deploy|teardown|status` - inject or clean up chaos pods
+- `/chaos-test` - full end-to-end remediation test
+- `/postmortem <incident>` - generate structured postmortem report for a resolved incident
 
 ## Conventions
 - Python: ruff enforced, no new deps without pyproject.toml update
